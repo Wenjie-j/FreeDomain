@@ -1,0 +1,11 @@
+Board: JDCloud AX1800_Pro IPQ6018/AP-CP03-C1
+Current board_name: ap-cp03-c1
+Current kernel: 4.4.60
+Current rootfs: /dev/mmcblk0p18, PARTLABEL=rootfs, 2 GiB, squashfs + F2FS overlay
+Current boot partitions: p16 HLOS 6 MiB, p17 HLOS_1 6 MiB
+Current Ethernet: eth0-eth3 all nss-dp
+Current acceleration: qca_nss_drv + qca_nss_dp + qca_ssdk + ECM active
+Current Wi-Fi: qca_ol/umac old QSDK stack with NSS Wi-Fi offload
+Current WLAN caldata log: IPQ6018/caldata.bin, size 65536, offset 0x20000
+Current GPT warning: backup GPT not at end / backup GPT corrupt; primary GPT usable
+Safety rule: no GPT repair, no partition write, no firmware flash during V1 build/test preparation.
