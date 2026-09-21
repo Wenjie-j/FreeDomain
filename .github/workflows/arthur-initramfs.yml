@@ -1,4 +1,4 @@
-name: Build Arthur NSS initramfs
+name: Build Arthur WiFi-safe NSS initramfs V2
 
 on:
   push:
@@ -44,7 +44,7 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Configure NSS + RE-SS-01 + initramfs
+      - name: Configure WiFi-safe NSS + RE-SS-01 + initramfs
         working-directory: openwrt
         run: |
           cp nss-setup/config-nss.seed .config
@@ -71,19 +71,35 @@ jobs:
           set_y TARGET_ROOTFS_INITRAMFS
           set_y TARGET_INITRAMFS_COMPRESSION_ZSTD
 
-          # Arthur has 1 GiB RAM. Keep Wi-Fi NSS enabled.
-          set_y ATH11K_NSS_SUPPORT
+          # Arthur has 1 GiB RAM.
           set_y ATH11K_MEM_PROFILE_1G
           set_n ATH11K_MEM_PROFILE_512M
           set_n ATH11K_MEM_PROFILE_256M
 
-          # The main-nss feed is NSS 12.5. Mesh support would force 11.4, so disable mesh for V1.
+          # V2 Wi-Fi recovery strategy:
+          # keep wired NSS/ECM, but use the normal mac80211 ath11k data path first.
+          # Once both radios are proven stable on this exact AP-CP03-C1 unit,
+          # Wi-Fi NSS offload can be re-enabled in a later build.
+          set_n ATH11K_NSS_SUPPORT
+          set_n ATH11K_NSS_MESH_SUPPORT
+
+          # Keep wired NSS 12.5 acceleration.
           set_y NSS_FIRMWARE_VERSION_12_5
           set_n NSS_FIRMWARE_VERSION_12_2
           set_n NSS_FIRMWARE_VERSION_11_4
-          set_n ATH11K_NSS_MESH_SUPPORT
 
-          # Minimal tools for first RAM-boot validation.
+          # Explicit Wi-Fi stack and JDCloud board data.
+          set_y PACKAGE_kmod-ath11k
+          set_y PACKAGE_kmod-ath11k-ahb
+          set_y PACKAGE_ath11k-firmware-ipq6018
+          set_y PACKAGE_ipq-wifi-jdcloud_re-ss-01
+          set_y PACKAGE_wireless-regdb
+          set_y PACKAGE_wpad-mesh-openssl
+          set_y PACKAGE_iw
+          set_y PACKAGE_luci-mod-network
+          set_y PACKAGE_rpcd-mod-iwinfo
+
+          # LuCI + validation tools.
           set_y PACKAGE_luci
           set_y LUCI_LANG_zh_Hans
           set_y PACKAGE_ethtool-full
@@ -91,23 +107,48 @@ jobs:
 
           make defconfig
 
-          # Hard safety assertions: never accidentally build the wrong target.
+          # Hard safety assertions.
           grep -q '^CONFIG_TARGET_qualcommax=y$' .config
           grep -q '^CONFIG_TARGET_qualcommax_ipq60xx=y$' .config
           grep -q '^CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01=y$' .config
           grep -q '^CONFIG_TARGET_ROOTFS_INITRAMFS=y$' .config
           grep -q '^CONFIG_ATH11K_MEM_PROFILE_1G=y$' .config
-          grep -q '^CONFIG_ATH11K_NSS_SUPPORT=y$' .config
+          grep -q '^# CONFIG_ATH11K_NSS_SUPPORT is not set$' .config
           grep -q '^CONFIG_NSS_FIRMWARE_VERSION_12_5=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-ath11k=y$' .config
+          grep -q '^CONFIG_PACKAGE_kmod-ath11k-ahb=y$' .config
+          grep -q '^CONFIG_PACKAGE_ath11k-firmware-ipq6018=y$' .config
+          grep -q '^CONFIG_PACKAGE_ipq-wifi-jdcloud_re-ss-01=y$' .config
+          grep -q '^CONFIG_PACKAGE_wpad-mesh-openssl=y$' .config
+          grep -q '^CONFIG_PACKAGE_luci-mod-network=y$' .config
+          grep -q '^CONFIG_PACKAGE_rpcd-mod-iwinfo=y$' .config
 
           {
             echo '===== TARGET / INITRAMFS ====='
             grep -E '^CONFIG_TARGET_qualcommax|^CONFIG_TARGET_ROOTFS_INITRAMFS|^CONFIG_TARGET_INITRAMFS' .config || true
-            echo '===== NSS / ECM / ATH11K ====='
-            grep -Ei 'qca.nss|nss.ecm|nss_firmware|ath11k.*nss|ath11k.*mem.profile|sqm-scripts-nss' .config || true
+            echo '===== WI-FI ====='
+            grep -E '^CONFIG_PACKAGE_(kmod-ath11k|ath11k-firmware-ipq6018|ipq-wifi-jdcloud_re-ss-01|wireless-regdb|wpad|iw|luci-mod-network|rpcd-mod-iwinfo)' .config || true
+            grep -E '^CONFIG_ATH11K_|^# CONFIG_ATH11K_' .config || true
+            echo '===== NSS / ECM ====='
+            grep -Ei 'qca.nss|nss.ecm|nss_firmware|sqm-scripts-nss' .config || true
             echo '===== LUCI / TEST TOOLS ====='
             grep -E '^CONFIG_PACKAGE_luci=|^CONFIG_LUCI_LANG_zh_Hans=|^CONFIG_PACKAGE_ethtool|^CONFIG_PACKAGE_iperf3=' .config || true
           } | tee ../effective-config.txt
+
+      - name: Add first-boot wireless config generator
+        working-directory: openwrt
+        run: |
+          mkdir -p files/etc/uci-defaults
+          cat > files/etc/uci-defaults/99-arthur-wireless-config <<'EOF'
+          #!/bin/sh
+          # Create /etc/config/wireless once radios are available.
+          # Keep radios disabled by default; the user enables/configures them in LuCI.
+          if [ ! -s /etc/config/wireless ]; then
+            wifi config >/tmp/arthur-wifi-config.log 2>&1 || true
+          fi
+          exit 0
+          EOF
+          chmod 0755 files/etc/uci-defaults/99-arthur-wireless-config
 
       - name: Download sources
         working-directory: openwrt
@@ -120,11 +161,22 @@ jobs:
         run: |
           make -j"$(nproc)" V=s || make -j1 V=s
 
+      - name: Verify Wi-Fi payload in built rootfs
+        working-directory: openwrt
+        run: |
+          ROOTDIR="$(find build_dir -type d -name root-qualcommax | head -n1)"
+          echo "ROOTDIR=$ROOTDIR"
+          test -n "$ROOTDIR"
+          test -d "$ROOTDIR/lib/firmware/ath11k/IPQ6018"
+          find "$ROOTDIR/lib/firmware/ath11k/IPQ6018" -maxdepth 4 -type f -print | sort | tee ../wifi-firmware-files.txt
+          find "$ROOTDIR/lib/firmware/ath11k/IPQ6018" -type f | grep -Eq '/(board-2\.bin|board\.bin)$'
+          test -x "$ROOTDIR/etc/uci-defaults/99-arthur-wireless-config"
+
       - name: Collect images and metadata
         if: always()
         run: |
           mkdir -p out
-          cp source-commit.txt effective-config.txt out/ 2>/dev/null || true
+          cp source-commit.txt effective-config.txt wifi-firmware-files.txt out/ 2>/dev/null || true
           cp openwrt/.config out/final.config 2>/dev/null || true
 
           TARGET_DIR=openwrt/bin/targets/qualcommax/ipq60xx
@@ -147,7 +199,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: arthur-nss-initramfs
+          name: arthur-wifi-safe-v2
           path: out/
           if-no-files-found: warn
           retention-days: 7
