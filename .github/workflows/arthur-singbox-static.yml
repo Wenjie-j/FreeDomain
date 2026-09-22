@@ -18,7 +18,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y git file binutils
+          sudo apt-get install -y git file binutils qemu-user-static
 
       - name: Set up Go 1.25.5
         uses: actions/setup-go@v6
@@ -47,11 +47,7 @@ jobs:
           TAGS="with_quic,with_dhcp,with_wireguard,with_utls,with_clash_api"
           LDFLAGS_SHARED="$(cat release/LDFLAGS)"
 
-          go build -v -trimpath \
-            -tags "$TAGS" \
-            -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$VERSION' $LDFLAGS_SHARED -s -w -buildid=" \
-            -o ../sing-box-1.14.1-arthur-static \
-            ./cmd/sing-box
+          go build -v -trimpath             -tags "$TAGS"             -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$VERSION' $LDFLAGS_SHARED -s -w -buildid="             -o ../sing-box-1.14.1-arthur-static             ./cmd/sing-box
 
           printf '%s\n' "$TAGS" > ../build-tags.txt
 
@@ -65,20 +61,18 @@ jobs:
           readelf -h "$BIN" | tee elf-header.txt
           readelf -l "$BIN" | tee elf-program-headers.txt
 
-          # A truly static/pure-Go build must not request an ELF interpreter.
           if readelf -l "$BIN" | grep -q 'INTERP'; then
             echo "ERROR: ELF contains PT_INTERP; not suitable for old QWRT"
             exit 1
           fi
 
-          # There should be no DT_NEEDED shared-library entries.
           if readelf -d "$BIN" 2>/dev/null | grep -q 'NEEDED'; then
             echo "ERROR: ELF has shared-library dependencies"
             readelf -d "$BIN"
             exit 1
           fi
 
-          "$BIN" version | tee version.txt
+          qemu-aarch64-static "$BIN" version | tee version.txt
           grep -q 'sing-box version 1.14.1' version.txt
           grep -q 'CGO: disabled' version.txt
 
