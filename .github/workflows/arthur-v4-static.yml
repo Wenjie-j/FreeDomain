@@ -7,7 +7,12 @@ on:
     paths:
       - '.github/workflows/arthur-v4-static.yml'
       - 'arthur-build/v4/**'
+      - 'arthur-build/ota/**'
+      - 'arthur-upgrade/**'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   static-checks:
@@ -19,4 +24,6 @@ jobs:
         run: |
           sh -n arthur-build/v4/collect-current-ui.sh
           python3 -m unittest discover -s arthur-build/v4 -p 'test_*.py' -v
+          python3 -m unittest discover -s arthur-upgrade -p 'test_*.py' -v
+          python3 -m unittest discover -s arthur-build/ota -p 'test_*.py' -v
           python3 -m py_compile arthur-build/v4/verify_components.py arthur-build/v4/legacy_network_preflight.py

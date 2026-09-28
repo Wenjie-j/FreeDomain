@@ -15,7 +15,9 @@
 upgrade_gate.py 只读取一份离线固件 sysupgrade tar 和固定的硬件清单，检查 FIT 体积、镜像板型字符串、分区容量与升级安全条件；输出 JSON 并对当前原机返回退出码 2（BLOCKED）。
 它不连接用户路由器，不读写真实 GPT/HLOS/rootfs/U-Boot 环境；即使人为修改所有 inventory flags 为 true，脚本仍禁止自行批准刷机，直到另行实现并审核签名发布和受支持的恢复机制。
 
-用法：python3 arthur-upgrade/upgrade_gate.py --inventory arthur-upgrade/inventory-arthur-1gb-v3.json --sysupgrade /path/to/sysupgrade.bin --output report.json
+用法：python3 arthur-upgrade/upgrade_gate.py --inventory arthur-upgrade/inventory-arthur-1gb-v3.json --sysupgrade /path/to/sysupgrade.bin --network-report /path/to/sanitized-network-report.json --output report.json
+
+V4 的 `arthur-build/v4/legacy_network_preflight.py` 可从离线旧 `uci show` 生成脱敏的网络报告；本门禁会把已知网络迁移阻断项合并进固件检查。缺少报告或报告格式异常也会阻断。它不会自动转换接口，更不会因为已有报告而批准刷写。
 
 ## 后续研发门槛
 1. 设计并实证首次跨 4.4→6.12 的升级/恢复路径，明确缺少 rootfs_1 时是否能够满足真正自动回滚；如果不能，必须向用户如实说明首次升级残余风险，不用 UI 样式掩饰。

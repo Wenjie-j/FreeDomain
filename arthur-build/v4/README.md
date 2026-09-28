@@ -50,6 +50,20 @@ manifest and build flags. Upstream package locations (availability only):
 
 These package definitions establish a build path, not functional compatibility.
 
+`feeds.lock.json` records eight immutable candidate feed commits; run
+`write_pinned_feeds.py --output /path/to/isolated-openwrt/feeds.conf` before
+updating feeds. The selected packages feed defines Sing-box 1.14.0, whereas
+the user's working core is 1.14.1. Its mwan3 2.12.2 declares iptables
+dependencies, so firewall4/NSS/proxy interaction is unverified. The lock
+therefore does **not** authorize a V4 image build or distribution.
+
+`candidate.config.fragment` and `prepare_candidate_config.py` stage the
+available UI, multi-WAN, TUN and Mesh packages on an offline V3 config copy.
+The fragment deliberately excludes Sing-box until the exact core/features
+and current custom UI source can be integrated. Run `make defconfig` in the
+isolated tree and compare the effective config and produced manifest; the
+fragment alone does not prove a package built or that its UI works.
+
 Example offline check:
 
 ```sh

@@ -30,5 +30,24 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(evaluate(self.layout,self.image)['write_approved'])
         self.assertIn('SIGNED_RELEASE_AND_PROVEN_ROLLBACK_NOT_YET_APPROVED',
                       evaluate(self.layout,self.image)['blockers'])
+    def test_network_report_is_combined_without_exposing_device_values(self):
+        network={'classification':'READ_ONLY_INVENTORY_NOT_FLASH_APPROVAL',
+                 'decision':'BLOCKED_FIRST_MIGRATION',
+                 'blockers':['PHYSICAL_ETHERNET_MAPPING_UNVERIFIED'],
+                 'interfaces':{'wan':{'secret':'DO_NOT_PRINT'}}}
+        report=evaluate(self.layout,self.image,network)
+        self.assertIn('NETWORK_PHYSICAL_ETHERNET_MAPPING_UNVERIFIED',report['blockers'])
+        self.assertNotIn('DO_NOT_PRINT',json.dumps(report))
+    def test_missing_or_spoofed_network_report_fails_closed(self):
+        self.assertIn('NETWORK_MIGRATION_REPORT_MISSING',
+                      evaluate(self.layout,self.image)['blockers'])
+        for invalid in ({'classification':'READ_ONLY_INVENTORY_NOT_FLASH_APPROVAL',
+                         'decision':'PASS','blockers':['PHYSICAL_ETHERNET_MAPPING_UNVERIFIED']},
+                        {'classification':'READ_ONLY_INVENTORY_NOT_FLASH_APPROVAL',
+                         'decision':'BLOCKED_FIRST_MIGRATION',
+                         'blockers':['PASSWORD=secret']}, []):
+            report=evaluate(self.layout,self.image,invalid)
+            self.assertIn('NETWORK_MIGRATION_REPORT_INVALID',report['blockers'])
+            self.assertNotIn('secret',json.dumps(report))
 if __name__=='__main__':
     unittest.main()

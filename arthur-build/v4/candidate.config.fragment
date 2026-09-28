@@ -1,0 +1,18 @@
+# Candidate only: append to an isolated copy of the V3 OpenWrt build config,
+# then run make defconfig and inspect the effective config and image manifest.
+# No router write, sysupgrade or release approval is implied.
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-compat=y
+CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_PACKAGE_kmod-tun=y
+CONFIG_PACKAGE_mwan3=y
+CONFIG_PACKAGE_luci-app-mwan3=y
+CONFIG_PACKAGE_wpad-mesh-openssl=y
+CONFIG_LUCI_LANG_zh_Hans=y
+CONFIG_ATH11K_MEM_PROFILE_1G=y
+CONFIG_NSS_FIRMWARE_VERSION_11_4=y
+# CONFIG_ATH11K_NSS_SUPPORT is not set
+
+# Sing-box intentionally not enabled here: candidate packages feed is 1.14.0
+# while the user's working router has 1.14.1 with specific compile tags.
+# The latest custom UI source and service integration must be checked first.

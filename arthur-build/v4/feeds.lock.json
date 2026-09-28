@@ -1,0 +1,23 @@
+{
+  "classification": "CANDIDATE_SOURCE_REVISIONS_NOT_BUILD_APPROVAL",
+  "base": {
+    "repository": "https://github.com/qosmio/openwrt-ipq.git",
+    "revision": "92a2d104145c8d265851c4b388a41bd8e9c21cd9"
+  },
+  "feeds": [
+    {"name": "packages", "repository": "https://github.com/openwrt/packages.git", "revision": "8f9ad5085e0e401e4327638a4e05258e1c5d4569"},
+    {"name": "luci", "repository": "https://github.com/openwrt/luci.git", "revision": "0818828b3bf7ccc71f9a45a34873fb63826a2802"},
+    {"name": "routing", "repository": "https://github.com/openwrt/routing.git", "revision": "4b9891b9136259f93294a424507ed24c5e8c1cbd"},
+    {"name": "telephony", "repository": "https://github.com/openwrt/telephony.git", "revision": "5d68d53c160a325ea9d03fce393e051573bcc736"},
+    {"name": "nss_packages", "repository": "https://github.com/qosmio/nss-packages.git", "revision": "0d970dbf0185e3f53709bd803e8a466598023c57"},
+    {"name": "sqm_scripts_nss", "repository": "https://github.com/qosmio/sqm-scripts-nss.git", "revision": "4b4ed8639229be5e70cf94b73cdf7dbc09e66d5d"},
+    {"name": "video", "repository": "https://github.com/openwrt/video.git", "revision": "605d768782e13fc8b8fa16e719d4a2742dafbd45"},
+    {"name": "argon", "repository": "https://github.com/jerrykuku/luci-theme-argon.git", "revision": "0546f975a66796a89ff988524290c4a2e2d01855"}
+  ],
+  "known_gaps": [
+    "The pinned packages feed currently defines sing-box 1.14.0; current router uses 1.14.1.",
+    "Pinned mwan3 2.12.2 declares iptables dependencies; firewall4 and proxy interaction are not validated.",
+    "Argon 2.4.7 source has not been built against the pinned LuCI revision.",
+    "These are candidate immutable revisions, not the unrecoverable V3 Actions feed commit history."
+  ]
+}

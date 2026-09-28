@@ -7,6 +7,15 @@ from pathlib import Path
 LIMIT = 6 * 1024 * 1024
 FIT_MAGIC = b'\xd0\x0d\xfe\xed'
 REQUIRED_MARKERS = (b'config@cp03-c2', b'jdcloud,re-ss-01', b'JDC-RE-SS-01')
+NETWORK_BLOCKERS = frozenset((
+    'PHYSICAL_ETHERNET_MAPPING_UNVERIFIED',
+    'FIRST_BOOT_RECOVERY_UNVERIFIED',
+    'TUNNEL_SERVICE_MIGRATION_UNVERIFIED',
+    'USB_WAN_MIGRATION_UNVERIFIED',
+    'UNKNOWN_INTERFACE_BINDING',
+    'LAN_OR_WAN_INTERFACE_MISSING',
+    'MANAGEMENT_ADDRESS_REQUIRES_EXPLICIT_MIGRATION',
+))
 
 def inspect_image(path: Path) -> dict:
     with tarfile.open(path, mode='r:*') as src:
@@ -35,7 +44,7 @@ def inspect_image(path: Path) -> dict:
         'note': 'Markers and size only; FIT cryptographic subimage verification is separate',
     }
 
-def evaluate(layout: dict, image: dict) -> dict:
+def evaluate(layout: dict, image: dict, network_report: dict | None = None) -> dict:
     reasons=[]
     required_fields=('model','physical_ram_mib','hlos_bytes','rootfs_bytes',
        'has_rootfs_1','backup_hlos_boot_tested','backup_gpt_valid',
@@ -64,6 +73,18 @@ def evaluate(layout: dict, image: dict) -> dict:
     ):
         if layout[flag] is not True:
             reasons.append(code)
+    if network_report is None:
+        reasons.append('NETWORK_MIGRATION_REPORT_MISSING')
+    elif (not isinstance(network_report, dict)
+          or network_report.get('classification') != 'READ_ONLY_INVENTORY_NOT_FLASH_APPROVAL'
+          or network_report.get('decision') != 'BLOCKED_FIRST_MIGRATION'
+          or not isinstance(network_report.get('blockers'), list)
+          or not network_report['blockers']
+          or any(not isinstance(code, str) or code not in NETWORK_BLOCKERS
+                 for code in network_report['blockers'])):
+        reasons.append('NETWORK_MIGRATION_REPORT_INVALID')
+    else:
+        reasons.extend('NETWORK_' + code for code in sorted(set(network_report['blockers'])))
     reasons.append('SIGNED_RELEASE_AND_PROVEN_ROLLBACK_NOT_YET_APPROVED')
     return {'offline_image':image, 'write_approved':False,
         'read_only':True,'blockers':reasons,
@@ -75,10 +96,13 @@ def main(argv=None):
     p.add_argument('--inventory',type=Path,required=True)
     p.add_argument('--sysupgrade',type=Path,required=True)
     p.add_argument('--output',type=Path)
+    p.add_argument('--network-report',type=Path,
+                   help='Sanitized, read-only legacy network preflight JSON')
     args=p.parse_args(argv)
     try:
-        doc=evaluate(json.loads(args.inventory.read_text()),inspect_image(args.sysupgrade))
-    except (OSError, ValueError, tarfile.TarError, KeyError) as exc:
+        network=json.loads(args.network_report.read_text()) if args.network_report else None
+        doc=evaluate(json.loads(args.inventory.read_text()),inspect_image(args.sysupgrade),network)
+    except (OSError, ValueError, TypeError, tarfile.TarError, KeyError) as exc:
         print('FAIL: '+str(exc),file=sys.stderr)
         return 3
     body=json.dumps(doc,ensure_ascii=False,indent=2)+'\n'
