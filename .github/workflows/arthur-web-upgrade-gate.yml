@@ -1,0 +1,67 @@
+name: Arthur V3 web-upgrade dry-run safety gate
+
+on:
+  push:
+    branches:
+      - arthur-webupgrade-safety-v1
+    paths:
+      - '.github/workflows/arthur-web-upgrade-gate.yml'
+      - 'arthur-upgrade/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout isolated safety code
+        uses: actions/checkout@v4
+      - name: Fetch actual, already built V3 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: arthur-nss11-4-1gb-v3-offline-audit
+          run-id: 36417540760
+          github-token: ${{ github.token }}
+          repository: Wenjie-j/FreeDomain
+          path: input
+      - name: Run read-only gate unit tests
+        run: python3 -m unittest discover -s arthur-upgrade -p 'test_gate.py' -v
+      - name: Validate actual V3 image; verify that unsafe flash is BLOCKED
+        run: |
+          mkdir -p output
+          IMAGE=input/openwrt-qualcommax-ipq60xx-jdcloud_re-ss-01-squashfs-sysupgrade.bin
+          test -s "$IMAGE"
+          set +e
+          python3 arthur-upgrade/upgrade_gate.py \
+            --inventory arthur-upgrade/inventory-arthur-1gb-v3.json \
+            --sysupgrade "$IMAGE" \
+            --output output/actual-v3-web-upgrade-readiness.json
+          STATUS=$?
+          set -e
+          test "$STATUS" -eq 2
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          doc=json.loads(Path('output/actual-v3-web-upgrade-readiness.json').read_text())
+          image=doc['offline_image']
+          assert image['kernel_bytes']==5674292
+          assert image['kernel_sha256']=='183aad87fe950e5f1f3b0d487fc69536ac0fb1fd8fe29d4f388efd0e55ef04dd'
+          assert image['rootfs_bytes']==14880768
+          assert image['fits_hlos_6mib']
+          assert not doc['write_approved'] and doc['result']=='BLOCKED'
+          for key in ('NO_SECOND_ROOTFS','BACKUP_HLOS_NOT_BOOT_TESTED','RESCUE_NOT_TESTED','UPGRADE_WRITE_PATH_NOT_APPROVED'):
+              assert key in doc['blockers'],key
+          print('PASS: real V3 fits 6MiB, but rejects unproven in-place web upgrade')
+          PY
+      - name: Upload only a JSON audit report (no flash image)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arthur-v3-real-artifact-web-upgrade-readonly-audit
+          path: output/
+          if-no-files-found: warn
+          retention-days: 30
