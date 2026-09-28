@@ -13,6 +13,7 @@ CONFIG_ATH11K_MEM_PROFILE_1G=y
 CONFIG_NSS_FIRMWARE_VERSION_11_4=y
 # CONFIG_ATH11K_NSS_SUPPORT is not set
 
-# Sing-box intentionally not enabled here: candidate packages feed is 1.14.0
-# while the user's working router has 1.14.1 with specific compile tags.
-# The latest custom UI source and service integration must be checked first.
+# Sing-box intentionally not enabled here: candidate packages feed is 1.14.0.
+# The current 1.14.1 binary was compiled for the old Linux 4.4 firmware.
+# Rebuild pinned 1.14.1 source for this V4 toolchain with the required tags;
+# then validate the current custom UI, service and configuration migration.

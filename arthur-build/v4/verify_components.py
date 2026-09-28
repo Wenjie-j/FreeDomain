@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check V4 build contents offline. Passing is never permission to flash."""
 import argparse
+import hashlib
 import json
 import sys
 import zipfile
@@ -23,9 +24,13 @@ REQUIRED_ROOT_FILES = (
     "etc/init.d/sing-box",
     "usr/bin/sing-box",
 )
+CORE_TAGS = {"with_quic", "with_dhcp", "with_wireguard", "with_utls", "with_clash_api"}
+V4_BASE = "92a2d104145c8d265851c4b388a41bd8e9c21cd9"
+CORE_SOURCE = "1ac1a339cb1223e9c70eae14c44411c75033c02d"
 
 
-def inspect(artifact: Path, root_dir: Path | None = None) -> dict:
+def inspect(artifact: Path, root_dir: Path | None = None,
+            core_build_report: dict | None = None) -> dict:
     with zipfile.ZipFile(artifact) as z:
         manifests = [n for n in z.namelist() if n.endswith("jdcloud_re-ss-01.manifest")]
         if len(manifests) != 1 or "final.config" not in z.namelist():
@@ -46,13 +51,36 @@ def inspect(artifact: Path, root_dir: Path | None = None) -> dict:
         root_files = {p: "NOT_INSPECTED" for p in REQUIRED_ROOT_FILES}
     else:
         root_files = {p: (root_dir / p).is_file() for p in REQUIRED_ROOT_FILES}
-    complete = not missing and all(flags.values()) and all(x is True for x in root_files.values())
+    # A copied Linux 4.4 binary can have the same name and version as a V4 build.
+    # This only checks declared build trace + byte identity, not hardware runtime.
+    core_trace = "MISSING_V4_BUILD_TRACE"
+    if root_dir is not None and isinstance(core_build_report, dict):
+        binary = root_dir / "usr/bin/sing-box"
+        if binary.is_file() and all((
+            core_build_report.get("base_commit") == V4_BASE,
+            core_build_report.get("source_commit") == CORE_SOURCE,
+            core_build_report.get("source_version") == "1.14.1",
+            core_build_report.get("target_arch_packages") == "aarch64_cortex-a53",
+            isinstance(core_build_report.get("build_tags"), list),
+        )):
+            tags = core_build_report["build_tags"]
+            if (all(isinstance(tag, str) for tag in tags)
+                    and CORE_TAGS.issubset(tags)
+                    and hashlib.sha256(binary.read_bytes()).hexdigest()
+                    == core_build_report.get("binary_sha256")):
+                core_trace = "MATCHES_DECLARED_V4_BUILD_TRACE"
+        if core_trace != "MATCHES_DECLARED_V4_BUILD_TRACE":
+            core_trace = "INVALID_V4_BUILD_TRACE"
+    complete = (not missing and all(flags.values())
+                and all(x is True for x in root_files.values())
+                and core_trace == "MATCHES_DECLARED_V4_BUILD_TRACE")
     return {
         "classification": "COMPONENT_INVENTORY_ONLY_NOT_FLASH_APPROVAL",
         "artifact": artifact.name,
         "missing_packages": missing,
         "build_flags": flags,
         "staged_root_files": root_files,
+        "core_build_trace": core_trace,
         "component_gate": "COMPONENTS_PRESENT" if complete else "BLOCKED_INCOMPLETE_COMPONENTS",
         "release_note": "Boot, config migration, recovery and interactive UI still require separate validation.",
     }
@@ -62,10 +90,14 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--artifact", required=True, type=Path)
     ap.add_argument("--root-dir", type=Path)
+    ap.add_argument("--core-build-report", type=Path,
+                    help="Metadata from a new V4 toolchain build; never the old router binary")
     ap.add_argument("--output", type=Path)
     args = ap.parse_args(argv)
     try:
-        report = inspect(args.artifact, args.root_dir)
+        core_build_report = (json.loads(args.core_build_report.read_text(encoding="utf-8"))
+                             if args.core_build_report else None)
+        report = inspect(args.artifact, args.root_dir, core_build_report)
     except (OSError, ValueError, UnicodeError, zipfile.BadZipFile) as exc:
         report = {"classification": "COMPONENT_INVENTORY_ONLY_NOT_FLASH_APPROVAL",
                   "component_gate": "BLOCKED_INVALID_ARTIFACT", "error": str(exc)}

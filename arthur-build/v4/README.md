@@ -13,7 +13,11 @@ pages only for dual WAN, Mesh, NSS status and independent Sing-box updates.
 `verify_components.py` expects Argon, `luci-compat`, custom Sing-box source,
 `kmod-tun`, the proxy core, OpenClash, mwan3/LuCI and the NSS/Wi-Fi stack. A
 package name in `.config` is insufficient: the built manifest and root tree
-must contain it. Neither this gate nor the inherited OTA gates prove runtime
+must contain it. A Sing-box file in the root tree is also insufficient:
+`--core-build-report` must identify the V4 base and pinned 1.14.1 source,
+target architecture, required build tags and the staged binary SHA-256.
+This is a declared offline build trace, not proof of hardware runtime or
+cryptographic supply chain attestation. Neither this gate nor the inherited OTA gates prove runtime
 1GiB RAM, radio calibration, live NSS acceleration, migration, or recovery.
 
 The September 27 plugin archive contains code but also private node/config
@@ -42,7 +46,7 @@ manifest and build flags. Upstream package locations (availability only):
 
 | Requirement | Candidate source | Integration still needed |
 | --- | --- | --- |
-| Sing-box core | `openwrt/packages/net/sing-box` | Compare version/features with user's 1.14.1 and custom service |
+| Sing-box core | `SagerNet/sing-box` v1.14.1 source; OpenWrt package recipe | Rebuild for V4 toolchain, verify tags and custom service |
 | mwan3 | `openwrt/packages/net/mwan3` | Validate firewall4, DNS, proxy and NSS behavior |
 | LuCI mwan3 + compatibility | `openwrt/luci/applications/luci-app-mwan3`, `modules/luci-compat` | Interactive acceptance test |
 | Argon | `jerrykuku/luci-theme-argon` external feed | Pin compatible source and preserve existing style |
@@ -52,15 +56,18 @@ These package definitions establish a build path, not functional compatibility.
 
 `feeds.lock.json` records eight immutable candidate feed commits; run
 `write_pinned_feeds.py --output /path/to/isolated-openwrt/feeds.conf` before
-updating feeds. The selected packages feed defines Sing-box 1.14.0, whereas
-the user's working core is 1.14.1. Its mwan3 2.12.2 declares iptables
+updating feeds. The selected packages feed defines Sing-box 1.14.0. The user's
+current Sing-box 1.14.1 executable was built for the old Linux 4.4 firmware;
+version equality would not establish V4 compatibility. The official v1.14.1
+source tag is pinned separately in the lock for a new package build with the
+V4 toolchain, required feature tags and service hooks. Its mwan3 2.12.2 declares iptables
 dependencies, so firewall4/NSS/proxy interaction is unverified. The lock
 therefore does **not** authorize a V4 image build or distribution.
 
 `candidate.config.fragment` and `prepare_candidate_config.py` stage the
 available UI, multi-WAN, TUN and Mesh packages on an offline V3 config copy.
-The fragment deliberately excludes Sing-box until the exact core/features
-and current custom UI source can be integrated. Run `make defconfig` in the
+The fragment deliberately excludes Sing-box until the core has been rebuilt
+and the current custom UI source can be integrated. Run `make defconfig` in the
 isolated tree and compare the effective config and produced manifest; the
 fragment alone does not prove a package built or that its UI works.
 

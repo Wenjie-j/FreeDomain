@@ -4,6 +4,12 @@
     "repository": "https://github.com/qosmio/openwrt-ipq.git",
     "revision": "92a2d104145c8d265851c4b388a41bd8e9c21cd9"
   },
+  "sing_box_source": {
+    "repository": "https://github.com/SagerNet/sing-box.git",
+    "tag": "v1.14.1",
+    "revision": "1ac1a339cb1223e9c70eae14c44411c75033c02d",
+    "purpose": "Source candidate for a new OpenWrt 6.12-targeted build, not the existing Linux 4.4 binary"
+  },
   "feeds": [
     {"name": "packages", "repository": "https://github.com/openwrt/packages.git", "revision": "8f9ad5085e0e401e4327638a4e05258e1c5d4569"},
     {"name": "luci", "repository": "https://github.com/openwrt/luci.git", "revision": "0818828b3bf7ccc71f9a45a34873fb63826a2802"},
@@ -15,7 +21,8 @@
     {"name": "argon", "repository": "https://github.com/jerrykuku/luci-theme-argon.git", "revision": "0546f975a66796a89ff988524290c4a2e2d01855"}
   ],
   "known_gaps": [
-    "The pinned packages feed currently defines sing-box 1.14.0; current router uses 1.14.1.",
+    "The packages feed defines sing-box 1.14.0; official 1.14.1 source is pinned separately for a fresh 6.12-targeted package recipe.",
+    "The current router's 1.14.1 executable was compiled for the Linux 4.4 firmware; its version alone does not validate it for V4.",
     "Pinned mwan3 2.12.2 declares iptables dependencies; firewall4 and proxy interaction are not validated.",
     "Argon 2.4.7 source has not been built against the pinned LuCI revision.",
     "These are candidate immutable revisions, not the unrecoverable V3 Actions feed commit history."
