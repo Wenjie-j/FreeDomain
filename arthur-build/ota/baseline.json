@@ -1,0 +1,14 @@
+{
+  "device_current_model": "JDCloud AX1800_Pro IPQ6018/AP-CP03-C1",
+  "device_target_compatible": "jdcloud,re-ss-01",
+  "hlos_partition_bytes": 6291456,
+  "rootfs_partition_bytes": 2147483648,
+  "hlos_1_boot_verified": false,
+  "rootfs_1_present": false,
+  "backup_gpt_valid": false,
+  "independent_recovery_verified": false,
+  "bootloader_automatic_rollback_verified": false,
+  "first_migration_config_converter_verified": false,
+  "linux_612_runtime_1g_wifi_nss_verified": false,
+  "source": "Real user backups September 27–28 2026; update only from new user-owned read-only evidence"
+}

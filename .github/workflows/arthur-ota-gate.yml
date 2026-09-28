@@ -1,0 +1,32 @@
+name: Arthur OTA fail-closed checks (NO FLASH)
+
+on:
+  push:
+    branches:
+      - arthur-ota-design-v1
+    paths:
+      - 'arthur-build/ota/**'
+      - '.github/workflows/arthur-ota-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  read-only-unit-tests:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run fail-closed OTA regression tests
+        run: python3 -m unittest discover -s arthur-build/ota -p 'test_*.py' -v
+      - name: Verify explicit no-go default
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("arthur-build/ota/baseline.json")
+          b=json.loads(p.read_text())
+          assert b['rootfs_1_present'] is False
+          assert b['independent_recovery_verified'] is False
+          assert b['bootloader_automatic_rollback_verified'] is False
+          print("PASS: production flashing remains blocked")
+          PY
