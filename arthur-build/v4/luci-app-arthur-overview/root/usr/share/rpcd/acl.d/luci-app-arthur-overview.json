@@ -1,0 +1,12 @@
+{
+  "luci-app-arthur-overview": {
+    "description": "Read-only Arthur status overview",
+    "read": {
+      "ubus": {
+        "mwan3": [ "status" ],
+        "network.interface": [ "dump" ],
+        "network.wireless": [ "status" ]
+      }
+    }
+  }
+}

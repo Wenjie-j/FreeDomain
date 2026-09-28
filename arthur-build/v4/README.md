@@ -71,6 +71,19 @@ and the current custom UI source can be integrated. Run `make defconfig` in the
 isolated tree and compare the effective config and produced manifest; the
 fragment alone does not prove a package built or that its UI works.
 
+The official v1.14.1 source archive is pinned by SHA-256 in `feeds.lock.json`.
+`prepare_singbox_recipe.py` verifies its root `go.mod` (Go 1.25.5 minimum) and
+changes only the version/hash in the reviewed 1.14.0 OpenWrt package recipe.
+The current candidate packages feed defaults to Go 1.27; actual cross-build
+and runtime compatibility remain untested. `singbox-1.14.1.config.fragment`
+records the old core's five required feature tags, but is not applied by the
+base config staging script. No old Linux 4.4 binary is copied into V4.
+
+`luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
+read-only mwan3, netifd and wireless status and links only to status pages.
+See `UI-CONTRACT.md` for the eventual dual WAN, Mesh, NSS and core updater
+interactions and the hardware validation conditions required before writes.
+
 Example offline check:
 
 ```sh

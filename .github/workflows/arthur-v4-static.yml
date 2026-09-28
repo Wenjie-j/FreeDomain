@@ -27,3 +27,11 @@ jobs:
           python3 -m unittest discover -s arthur-upgrade -p 'test_*.py' -v
           python3 -m unittest discover -s arthur-build/ota -p 'test_*.py' -v
           python3 -m py_compile arthur-build/v4/verify_components.py arthur-build/v4/legacy_network_preflight.py
+          node --check arthur-build/v4/luci-app-arthur-overview/htdocs/luci-static/resources/view/arthur/overview.js
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('arthur-build/v4/luci-app-arthur-overview/root/usr/share')
+          for path in root.rglob('*.json'):
+              json.loads(path.read_text())
+          PY

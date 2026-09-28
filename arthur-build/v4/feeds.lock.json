@@ -8,6 +8,8 @@
     "repository": "https://github.com/SagerNet/sing-box.git",
     "tag": "v1.14.1",
     "revision": "1ac1a339cb1223e9c70eae14c44411c75033c02d",
+    "codeload_sha256": "1ea41f7d06b0017fe3d3ba7ee30959048aa0ddde31cb0165dab9257edf673321",
+    "go_mod_minimum": "1.25.5",
     "purpose": "Source candidate for a new OpenWrt 6.12-targeted build, not the existing Linux 4.4 binary"
   },
   "feeds": [

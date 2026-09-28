@@ -1,0 +1,9 @@
+# Apply only after the verified 1.14.1 package recipe is staged in an isolated
+# OpenWrt 6.12 build tree and the existing service/UI source has been reviewed.
+CONFIG_PACKAGE_sing-box=y
+CONFIG_PACKAGE_kmod-tun=y
+CONFIG_SINGBOX_WITH_QUIC=y
+CONFIG_SINGBOX_WITH_DHCP=y
+CONFIG_SINGBOX_WITH_WIREGUARD=y
+CONFIG_SINGBOX_WITH_UTLS=y
+CONFIG_SINGBOX_WITH_CLASH_API=y

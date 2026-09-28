@@ -1,0 +1,8 @@
+{
+  "admin/status/arthur": {
+    "title": "亚瑟功能概览",
+    "order": 35,
+    "action": { "type": "view", "path": "arthur/overview" },
+    "depends": { "acl": [ "luci-app-arthur-overview" ] }
+  }
+}
