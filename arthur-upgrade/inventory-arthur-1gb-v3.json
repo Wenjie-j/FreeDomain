@@ -1,0 +1,15 @@
+{
+  "model": "JDCloud AX1800_Pro IPQ6018/AP-CP03-C1",
+  "physical_ram_mib": 1024,
+  "hlos_bytes": 6291456,
+  "rootfs_bytes": 2147483648,
+  "has_rootfs_1": false,
+  "backup_hlos_boot_tested": false,
+  "backup_gpt_valid": false,
+  "rescue_tested": false,
+  "v3_ram_boot_tested": false,
+  "v3_full_services_tested": false,
+  "migration_preserves_config_tested": false,
+  "upgrade_path_reviewed": false,
+  "note": "Inventory from read-only records, not a live probe. Does not authorize flash."
+}
