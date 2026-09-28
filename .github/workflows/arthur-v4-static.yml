@@ -1,0 +1,22 @@
+name: Arthur V4 offline migration checks
+
+on:
+  push:
+    branches:
+      - arthur-v4-backend-integration
+    paths:
+      - '.github/workflows/arthur-v4-static.yml'
+      - 'arthur-build/v4/**'
+  workflow_dispatch:
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and synthetic migration checks
+        run: |
+          sh -n arthur-build/v4/collect-current-ui.sh
+          python3 -m unittest discover -s arthur-build/v4 -p 'test_*.py' -v
+          python3 -m py_compile arthur-build/v4/verify_components.py arthur-build/v4/legacy_network_preflight.py

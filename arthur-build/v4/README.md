@@ -23,6 +23,33 @@ the latest source-only export before treating the UI port as complete.
 `collect-current-ui.sh` gathers only controller/view/manager and service scripts
 into `/tmp`; it excludes `/etc/config`, `/etc/sing-box` and the executable core.
 
+`legacy_network_preflight.py` reads an offline `uci show` export and emits only
+interface categories, safe field names and migration blockers. It deliberately
+never maps old `eth*` to new `lan*`/`wan`, generates UCI, or changes the router.
+Supply `--expected-management-ip` to compare the old LAN address without
+printing it. It always blocks the first migration until real port mapping,
+service behavior and recovery have been verified.
+`--uci-show -` accepts an offline export on standard input without saving the
+private source on disk.
+
+## Source dependencies before a V4 build
+
+The V3 workflow pins `qosmio/openwrt-ipq` at
+`92a2d104145c8d265851c4b388a41bd8e9c21cd9`, but `feeds update -a`
+fetches moving feed tips. Pin and record all feed revisions in the eventual V4
+build, including packages, LuCI and the NSS feed, then record the resulting
+manifest and build flags. Upstream package locations (availability only):
+
+| Requirement | Candidate source | Integration still needed |
+| --- | --- | --- |
+| Sing-box core | `openwrt/packages/net/sing-box` | Compare version/features with user's 1.14.1 and custom service |
+| mwan3 | `openwrt/packages/net/mwan3` | Validate firewall4, DNS, proxy and NSS behavior |
+| LuCI mwan3 + compatibility | `openwrt/luci/applications/luci-app-mwan3`, `modules/luci-compat` | Interactive acceptance test |
+| Argon | `jerrykuku/luci-theme-argon` external feed | Pin compatible source and preserve existing style |
+| Existing custom UI | User's later source-only export | Port backend calls; keep pages and behavior |
+
+These package definitions establish a build path, not functional compatibility.
+
 Example offline check:
 
 ```sh
