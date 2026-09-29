@@ -121,3 +121,36 @@ def verify_fit(raw, configuration="config@cp03-c2"):
         if not strong:
             raise ValueError("FIT subimage lacks a cryptographic digest")
     return sorted(algorithms)
+
+
+def inspect_fit_memory(raw, configuration="config@cp03-c2"):
+    """Inspect the selected FIT DTB's explicit RAM map; never infer runtime RAM."""
+    tree = parse_fit(raw)
+    conf = tree["children"]["configurations"]["children"][configuration]
+    name = _text(conf["props"]["fdt"])
+    fdt = tree["children"]["images"]["children"][name]
+    if _text(fdt["props"]["type"]) != "flat_dt":
+        raise ValueError("FIT configuration has no flat DTB")
+    dtb = parse_fit(fdt["props"]["data"])
+    memories = [(name, node) for name, node in dtb["children"].items()
+                if name == "memory" or name.startswith("memory@")]
+    if not memories:
+        return "BOOTLOADER_DEPENDENT_NO_MEMORY_NODE"
+    if (dtb["props"].get("#address-cells") != b"\x00\x00\x00\x02"
+            or dtb["props"].get("#size-cells") != b"\x00\x00\x00\x02"):
+        raise ValueError("unsupported memory address/size cell width")
+    regions = []
+    for _, node in memories:
+        if node["props"].get("status", b"okay\0") not in (b"okay\0", b"ok\0"):
+            raise ValueError("disabled or unknown memory node")
+        reg = node["props"].get("reg", b"")
+        if not reg or len(reg) % 16:
+            raise ValueError("invalid memory reg cells")
+        for offset in range(0, len(reg), 16):
+            base, size = struct.unpack_from(">QQ", reg, offset)
+            regions.append((base, size))
+    if regions == [(0x40000000, 0x20000000)]:
+        return "STATIC_512M_BLOCKED"
+    if regions == [(0x40000000, 0x40000000)]:
+        return "STATIC_1G_DECLARED_RUNTIME_UNVERIFIED"
+    return "UNEXPECTED_MEMORY_MAP_BLOCKED"

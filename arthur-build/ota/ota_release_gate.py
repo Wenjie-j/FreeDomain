@@ -15,7 +15,7 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "arthur-upgrade"))
-from fit_integrity import verify_fit
+from fit_integrity import inspect_fit_memory, verify_fit
 
 NEEDS = (
     "hlos_1_boot_verified",
@@ -72,6 +72,15 @@ def inspect(artifact, baseline):
     except ValueError:
         c["fit_subimage_hash_algorithms"] = []
         c["fit_subimage_hashes_valid"] = False
+    try:
+        c["fit_memory_profile"] = (inspect_fit_memory(kernel)
+                                   if c["fit_subimage_hashes_valid"] else "INVALID_OR_UNVERIFIED_FIT")
+    except (ValueError, KeyError, TypeError):
+        c["fit_memory_profile"] = "INVALID_OR_UNVERIFIED_FIT"
+    if c["fit_memory_profile"] == "STATIC_512M_BLOCKED":
+        report["hard_blockers"].append("STATIC_512M_DEVICE_TREE_ON_1G_ROUTER")
+    elif c["fit_memory_profile"] != "STATIC_1G_DECLARED_RUNTIME_UNVERIFIED":
+        report["hard_blockers"].append("UNVERIFIED_1G_FIT_MEMORY_MAP")
     c["hlos_capacity_bytes"] = int(baseline["hlos_partition_bytes"])
     c["hlos_headroom_bytes"] = c["hlos_capacity_bytes"] - size
     c["kernel_fits_hlos"] = 0 < size <= c["hlos_capacity_bytes"]

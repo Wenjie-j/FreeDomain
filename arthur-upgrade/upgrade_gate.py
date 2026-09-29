@@ -3,7 +3,7 @@
 from __future__ import annotations
 import argparse, hashlib, json, struct, sys, tarfile
 from pathlib import Path
-from fit_integrity import verify_fit
+from fit_integrity import inspect_fit_memory, verify_fit
 
 LIMIT = 6 * 1024 * 1024
 FIT_MAGIC = b'\xd0\x0d\xfe\xed'
@@ -40,6 +40,7 @@ def inspect_image(path: Path) -> dict:
         if marker not in kernel:
             raise ValueError(f'FIT missing required marker: {marker.decode()}')
     algorithms = verify_fit(kernel)
+    memory_profile = inspect_fit_memory(kernel)
     if root_magic != b'hsqs':
         raise ValueError('Root filesystem is not squashfs')
     return {
@@ -50,6 +51,7 @@ def inspect_image(path: Path) -> dict:
         'rootfs_bytes': root.size,
         'rootfs_is_squashfs': True,
         'fit_subimage_hash_algorithms': algorithms,
+        'fit_memory_profile': memory_profile,
         'file': path.name,
         'note': 'FIT subimage digests verified; no signature, boot or recovery verification',
     }
@@ -67,6 +69,10 @@ def evaluate(layout: dict, image: dict, network_report: dict | None = None) -> d
         reasons.append('DEVICE_MISMATCH')
     if layout['physical_ram_mib'] != 1024:
         reasons.append('RAM_NOT_1G')
+    if image.get('fit_memory_profile') == 'STATIC_512M_BLOCKED':
+        reasons.append('STATIC_512M_DEVICE_TREE_ON_1G_ROUTER')
+    elif image.get('fit_memory_profile') != 'STATIC_1G_DECLARED_RUNTIME_UNVERIFIED':
+        reasons.append('UNVERIFIED_1G_FIT_MEMORY_MAP')
     if image['kernel_bytes'] > layout['hlos_bytes'] or not image['fits_hlos_6mib']:
         reasons.append('FIT_OVER_HLOS_SIZE')
     if image['rootfs_bytes'] > layout['rootfs_bytes']:

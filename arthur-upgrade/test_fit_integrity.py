@@ -2,10 +2,38 @@ import hashlib
 import struct
 import unittest
 
-from fit_integrity import verify_fit
+from fit_integrity import inspect_fit_memory, verify_fit
 
 
-def fixture():
+def dtb_fixture(memory_bytes=None):
+    """Small DTB with 64-bit address/size cells, optionally with memory."""
+    strings = b"#address-cells\0#size-cells\0reg\0"
+    block = bytearray()
+
+    def begin(name):
+        block.extend(struct.pack(">I", 1))
+        block.extend(name.encode() + b"\0")
+        block.extend(b"\0" * (-len(block) % 4))
+
+    def prop(offset, value):
+        block.extend(struct.pack(">III", 3, len(value), offset))
+        block.extend(value)
+        block.extend(b"\0" * (-len(block) % 4))
+
+    begin("")
+    prop(0, struct.pack(">I", 2))
+    prop(15, struct.pack(">I", 2))
+    if memory_bytes is not None:
+        begin("memory")
+        prop(27, struct.pack(">QQ", 0x40000000, memory_bytes))
+        block.extend(struct.pack(">I", 2))
+    block.extend(struct.pack(">II", 2, 9))
+    header = struct.pack(">10I", 0xd00dfeed, 40 + len(block) + len(strings),
+                         40, 40 + len(block), 0, 17, 16, 0, len(strings), len(block))
+    return header + block + strings
+
+
+def fixture(fdt=b"FDT-CONTENTS"):
     """Tiny valid FIT with two independently hashed inline subimages."""
     strings = bytearray()
     offsets = {}
@@ -36,7 +64,7 @@ def fixture():
     begin("")
     begin("images")
     for name, kind, data in (("kernel-1", "kernel", b"KERNEL-CONTENTS"),
-                             ("fdt-1", "flat_dt", b"FDT-CONTENTS")):
+                             ("fdt-1", "flat_dt", fdt)):
         begin(name)
         prop("type", kind.encode() + b"\0")
         prop("data", data)
@@ -64,6 +92,14 @@ def fixture():
 
 
 class FitIntegrityTest(unittest.TestCase):
+    def test_explicit_half_gig_is_blocked_and_omitted_memory_remains_unknown(self):
+        self.assertEqual(inspect_fit_memory(fixture(dtb_fixture(0x20000000))),
+                         "STATIC_512M_BLOCKED")
+        self.assertEqual(inspect_fit_memory(fixture(dtb_fixture(0x40000000))),
+                         "STATIC_1G_DECLARED_RUNTIME_UNVERIFIED")
+        self.assertEqual(inspect_fit_memory(fixture(dtb_fixture())),
+                         "BOOTLOADER_DEPENDENT_NO_MEMORY_NODE")
+
     def test_both_configured_subimages_have_matching_digests(self):
         raw = fixture()
         self.assertEqual(verify_fit(raw), ["sha1"])

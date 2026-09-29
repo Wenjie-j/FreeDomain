@@ -12,8 +12,12 @@ class PreflightTests(unittest.TestCase):
     def test_known_router_must_block(self):
         report=evaluate(self.layout,self.image)
         self.assertFalse(report['write_approved'])
+        self.assertIn('UNVERIFIED_1G_FIT_MEMORY_MAP',report['blockers'])
         self.assertIn('NO_SECOND_ROOTFS',report['blockers'])
         self.assertIn('RESCUE_NOT_TESTED',report['blockers'])
+        self.image['fit_memory_profile']='STATIC_512M_BLOCKED'
+        self.assertIn('STATIC_512M_DEVICE_TREE_ON_1G_ROUTER',
+                      evaluate(self.layout,self.image)['blockers'])
     def test_wrong_device_must_block(self):
         self.layout['model']='WRONG'
         self.assertIn('DEVICE_MISMATCH',evaluate(self.layout,self.image)['blockers'])

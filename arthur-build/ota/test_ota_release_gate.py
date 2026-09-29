@@ -35,6 +35,9 @@ class TestFailClosed(unittest.TestCase):
             r = inspect(f, BASE)
             self.assertTrue(r["static_checks"]["kernel_fits_hlos"])
             self.assertFalse(r["static_checks"]["fit_subimage_hashes_valid"])
+            self.assertEqual(r["static_checks"]["fit_memory_profile"],
+                             "INVALID_OR_UNVERIFIED_FIT")
+            self.assertIn("UNVERIFIED_1G_FIT_MEMORY_MAP", r["hard_blockers"])
             self.assertEqual(r["decision"], "NO_GO_FOR_PRODUCTION_ROUTER")
             self.assertIn("UNVERIFIED_ROOTFS_1_PRESENT", r["hard_blockers"])
     def test_wrong_board_blocked(self):
