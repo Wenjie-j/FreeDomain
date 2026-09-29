@@ -135,6 +135,10 @@ OpenWrt package with explicit firewall4, `ip-full` and TPROXY dependencies. It
 has no init script, ships no generated endpoint/CN rule file and is configured
 as `m`, so the future package build does not place it in the firmware image.
 `validate_firewall4_test_package.py` checks those constraints before build.
+`report_firewall4_test_package.py` is prepared to inspect the actual staged
+package root and APK, compare the installed executable byte-for-byte with the
+reviewed candidate, reject legacy firewall commands and extend the partial
+package ownership report. It does not turn package evidence into runtime proof.
 
 The old TPROXY mark was `0x66/0xff`: it changed only the low byte. The draft
 now uses nft's masked mark update to preserve the other bits, including a
