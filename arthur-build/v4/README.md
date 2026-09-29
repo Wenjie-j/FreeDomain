@@ -116,6 +116,13 @@ the separate TPROXY mark and local policy route required for delivery.
 using `nft -c` on an Ubuntu CI host. This only parses a draft without applying
 rules; it cannot validate the V4 target's firewall4, kernel modules or traffic.
 
+`sing-box-firewall4.candidate` is the first BusyBox `ash` target candidate. It
+uses a lock, hash-owned include, exact reserved route/rule inspection, `fw4
+check`, reload verification and compensating rollback. Repeated start performs
+boot reconciliation, and stop refuses foreign or modified state before
+removing anything. It remains outside the image/package and must pass target
+failure injection, mwan3, NSS and real traffic tests before installation.
+
 The old TPROXY mark was `0x66/0xff`: it changed only the low byte. The draft
 now uses nft's masked mark update to preserve the other bits, including a
 typical mwan3 high-bit mask. `check_firewall4_mark_space.py` is a read-only

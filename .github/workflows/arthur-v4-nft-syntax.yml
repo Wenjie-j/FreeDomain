@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/arthur-v4-nft-syntax.yml'
       - 'arthur-build/v4/render_firewall4_draft.py'
+      - 'arthur-build/v4/sing-box-firewall4.candidate'
   workflow_dispatch:
 
 permissions:
@@ -18,8 +19,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Install nftables parser
-        run: sudo apt-get update && sudo apt-get install -y nftables
+      - name: Install nftables parser and BusyBox shell
+        run: sudo apt-get update && sudo apt-get install -y nftables busybox
       - name: Generate public synthetic rule set and parse without applying
         run: |
           python3 - <<'PY'
@@ -36,4 +37,5 @@ jobs:
               'table inet fw4 {\n' + draft + '\n}\n')
           PY
           sudo nft -c -f /tmp/arthur-v4-synthetic.nft
+          busybox ash -n arthur-build/v4/sing-box-firewall4.candidate
           echo 'HOST_NFT_PARSE_ONLY_TARGET_FW4_AND_NSS_UNTESTED'
