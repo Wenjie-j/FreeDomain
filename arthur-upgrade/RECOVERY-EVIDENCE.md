@@ -48,6 +48,7 @@ python3 arthur-upgrade/upgrade_gate.py \
   --network-report /tmp/legacy-network-report.json \
   --hlos-recovery-report /tmp/arthur-hlos-recovery-report.json \
   --gpt-recovery-report /tmp/arthur-gpt-report.json \
+  --boot-slot-report /tmp/arthur-boot-slot-report.json \
   --output /tmp/arthur-combined-upgrade-gate.json
 ```
 
@@ -63,3 +64,14 @@ or partition sizes and writes only to a temporary directory and output archive.
 The resulting archive contains raw boot metadata and must remain private. The
 collector does not flash, repair GPT, set environment variables, restart a
 service, or reboot the router.
+
+`boot_slot_evidence_audit.py` verifies that private archive, compares the two
+BOOTCONFIG copies, validates the U-Boot environment CRC without exporting
+environment values, and reads byte 148 as a **hint**. This offset and mapping
+come from the project's pinned V4 `jdcloud,re-ss-01` upgrade script: byte 1
+selects `HLOS_1/rootfs_1`, otherwise it selects `HLOS/rootfs`. Because this
+router has no `rootfs_1`, the result remains blocked even when the two captures
+are identical and their checksums are valid.
+
+Pinned source:
+https://github.com/qosmio/openwrt-ipq/blob/92a2d104145c8d265851c4b388a41bd8e9c21cd9/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/platform.sh

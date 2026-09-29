@@ -74,6 +74,7 @@ class PreflightTests(unittest.TestCase):
         report=evaluate(self.layout,self.image)
         self.assertIn('HLOS_RECOVERY_EVIDENCE_REPORT_MISSING',report['blockers'])
         self.assertIn('GPT_RECOVERY_EVIDENCE_REPORT_MISSING',report['blockers'])
+        self.assertIn('BOOT_SLOT_EVIDENCE_REPORT_MISSING',report['blockers'])
         spoofed={'classification':'READ_ONLY_RECOVERY_EVIDENCE_NOT_FLASH_APPROVAL',
                  'decision':'PASS','write_approved':True,
                  'blockers':['PASSWORD=secret']}
@@ -81,5 +82,15 @@ class PreflightTests(unittest.TestCase):
         self.assertIn('HLOS_RECOVERY_EVIDENCE_REPORT_INVALID',report['blockers'])
         self.assertIn('GPT_RECOVERY_EVIDENCE_REPORT_INVALID',report['blockers'])
         self.assertNotIn('secret',json.dumps(report))
+    def test_boot_slot_evidence_is_allowlisted_and_redacted(self):
+        boot={'classification':'READ_ONLY_BOOT_SLOT_EVIDENCE_NOT_FLASH_APPROVAL',
+              'decision':'BLOCKED_WRITE','write_approved':False,
+              'blockers':['PINNED_V4_WRITE_TARGET_IS_SELECTED_SLOT_PAIR'],
+              'raw':{'password':'DO_NOT_COPY'}}
+        report=evaluate(self.layout,self.image,None,None,None,boot)
+        self.assertIn(
+            'BOOT_SLOT_EVIDENCE_PINNED_V4_WRITE_TARGET_IS_SELECTED_SLOT_PAIR',
+            report['blockers'])
+        self.assertNotIn('DO_NOT_COPY',json.dumps(report))
 if __name__=='__main__':
     unittest.main()
