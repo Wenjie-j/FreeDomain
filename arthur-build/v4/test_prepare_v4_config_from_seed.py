@@ -23,6 +23,8 @@ CONFIG_PACKAGE_kmod-qca-nss-drv=y
         self.assertEqual(result.splitlines().count("CONFIG_PACKAGE_sing-box=y"), 1)
         self.assertEqual(result.splitlines().count("CONFIG_PACKAGE_kmod-nft-tproxy=y"), 1)
         self.assertEqual(result.splitlines().count(
+            "CONFIG_PACKAGE_luci-app-openclash=y"), 1)
+        self.assertEqual(result.splitlines().count(
             "CONFIG_PACKAGE_arthur-singbox-firewall4-test=m"), 1)
         self.assertIn("# CONFIG_TARGET_qualcommax_ipq807x is not set", result)
         self.assertNotIn("CONFIG_TARGET_qualcommax_ipq807x=y", result)

@@ -32,6 +32,9 @@ class ConfigPreflightContractTests(unittest.TestCase):
                 self.assertIn(name, self.source)
         self.assertIn("--core-owners ../v4-core-file-owners.json", self.source)
 
+    def test_openclash_is_a_required_resolved_package(self):
+        self.assertIn("'PACKAGE_luci-app-openclash'", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()
