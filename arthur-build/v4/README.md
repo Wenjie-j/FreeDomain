@@ -48,9 +48,15 @@ into `/tmp`; it excludes `/etc/config`, `/etc/sing-box` and the executable core.
 `audit_current_singbox_ui.py` inspects the private archive without extracting
 it, and emits a fixed vocabulary JSON report with no node or subscription
 contents. `prepare_current_singbox_ui.py` makes a private, offline working copy
-of five UI/backend source files. It changes each mutation route to LuCI's
+of five UI/backend source files (plus the setup service when supplied). It changes each mutation route to LuCI's
 POST-only dispatcher action and checks the method again in `require_post()`;
-the read-only `list` route stays GET. It excludes the legacy firewall and rules
+the read-only `list` route stays GET. Its status page checks the proposed
+firewall4 chain names and the generated dnsmasq include rather than the old
+iptables chain or UCI input. The staged setup service calls a future
+`sing-box-firewall4` executable and refuses to start when generated dnsmasq
+configuration does not include its runtime file. This is a fail-closed candidate:
+that executable has not been implemented, and the generated dnsmasq path is
+not yet verified on the V4 target. It excludes the legacy firewall and rules
 scripts, and labels the output `OFFLINE-ONLY.json`. Neither script stages a
 package in the image or relaxes the V4 and OTA gates. Example, using a private
 local copy of the archive:
@@ -67,8 +73,8 @@ python3 arthur-build/v4/prepare_current_singbox_ui.py \
 
 The active page's JavaScript already uses POST for mutations and GET for the
 list, so the method restriction preserves its existing interaction. Before
-packaging, port the recovered setup service, firewall and status checks
-to firewall4/nftables, test LuCI Lua compatibility, and verify service restart,
+packaging, implement and validate the firewall4 backend, confirm the dnsmasq
+include on a V4 image, test LuCI Lua compatibility, and verify service restart,
 node import/test, DNS and proxy behavior on a test image and device.
 
 `render_firewall4_draft.py` is the first offline firewall4 rule candidate. It

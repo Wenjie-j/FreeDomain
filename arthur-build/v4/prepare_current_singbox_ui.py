@@ -48,6 +48,60 @@ def harden_controller(source):
     return source.replace(old, new, 1)
 
 
+def port_status(source):
+    old_firewall = '''    return sys.call("iptables -t nat -S SINGBOX_TCP >/dev/null 2>&1")==0 and "已启用" or "未启用"'''
+    new_firewall = '''    local udp=sys.call("nft list chain inet fw4 arthur_singbox_udp >/dev/null 2>&1")==0
+    local tcp=sys.call("nft list chain inet fw4 arthur_singbox_tcp_dns >/dev/null 2>&1")==0
+    return udp and tcp and "规则已加载（待流量验证）" or "未启用"'''
+    old_dns = '''    local x=sys.exec("uci -q get dhcp.@dnsmasq[0].server 2>/dev/null")
+    return x:find("127.0.0.1#1053",1,true) and "已启用 → 127.0.0.1:1053" or "未启用"'''
+    new_dns = '''    local runtime=fs.readfile("/tmp/dnsmasq.d/99-arthur-singbox.conf") or ""
+    local has_server=runtime:find("server=127.0.0.1#1053",1,true)~=nil
+    local confdir=sys.call("grep -Fxq 'conf-dir=/tmp/dnsmasq.d' /var/etc/dnsmasq.conf.* >/dev/null 2>&1")==0
+    local conffile=sys.call("grep -Fxq 'conf-file=/tmp/dnsmasq.d/99-arthur-singbox.conf' /var/etc/dnsmasq.conf.* >/dev/null 2>&1")==0
+    return has_server and (confdir or conffile) and "配置文件已包含（待查询验证）" or "未生效"'''
+    if source.count(old_firewall) != 1 or source.count(old_dns) != 1:
+        raise ValueError("Sing-box status backend contract changed")
+    return source.replace(old_firewall, new_firewall, 1).replace(old_dns, new_dns, 1)
+
+
+def port_setup(source):
+    old = "/usr/bin/sing-box-firewall"
+    if source.count(old) < 2 or "dns_on() {" not in source:
+        raise ValueError("Sing-box setup service contract changed")
+    gate = '''dns_include_ready() {
+    for conf in /var/etc/dnsmasq.conf.*; do
+        [ -f "$conf" ] || continue
+        grep -Fxq 'conf-dir=/tmp/dnsmasq.d' "$conf" && return 0
+        grep -Fxq 'conf-file=/tmp/dnsmasq.d/99-arthur-singbox.conf' "$conf" && return 0
+    done
+    return 1
+}
+
+'''
+    start = '''start() {
+    wait_core || {'''
+    if source.count(start) != 1:
+        raise ValueError("Sing-box setup start contract changed")
+    source = source.replace("dns_on() {", gate + "dns_on() {", 1)
+    source = source.replace(old, "/usr/bin/sing-box-firewall4")
+    old_start = '''        return 1
+    }
+
+    /usr/bin/sing-box-firewall4 start || {'''
+    new_start = '''        return 1
+    }
+    dns_include_ready || {
+        logger -t sing-box-setup "generated dnsmasq config does not include runtime DNS"
+        return 1
+    }
+
+    /usr/bin/sing-box-firewall4 start || {'''
+    if source.count(old_start) != 1:
+        raise ValueError("Sing-box setup firewall start contract changed")
+    return source.replace(old_start, new_start, 1)
+
+
 def stage(archive_path, destination, services_archive=None):
     report = audit(archive_path, services_archive)
     destination = Path(destination)
@@ -69,6 +123,11 @@ def stage(archive_path, destination, services_archive=None):
 
     controller_name = STAGED[0]
     staged[controller_name] = harden_controller(staged[controller_name].decode()).encode()
+    status_name = STAGED[2]
+    staged[status_name] = port_status(staged[status_name].decode()).encode()
+    if services_archive is not None:
+        setup_name = "etc/init.d/sing-box-setup"
+        staged[setup_name] = port_setup(staged[setup_name].decode()).encode()
     destination.mkdir(parents=True, exist_ok=True)
     os.chmod(destination, 0o700)
     for name, content in staged.items():
@@ -88,6 +147,8 @@ def stage(archive_path, destination, services_archive=None):
             ],
             "source_archive_blockers": report["blockers"],
             "candidate_controller_method_hardened": True,
+            "candidate_status_ported": True,
+            "candidate_setup_ported": services_archive is not None,
             "warning": "Private offline source candidate; never install as firmware overlay.",
         }, indent=2) + "\n"
     )
@@ -107,6 +168,8 @@ def main():
         "services_archive_sha256": result["services_archive_sha256"],
         "source_archive_blockers": result["blockers"],
         "candidate_controller_method_hardened": True,
+        "candidate_status_ported": True,
+        "candidate_setup_ported": args.services_archive is not None,
         "offline_only": True,
     }, indent=2))
 

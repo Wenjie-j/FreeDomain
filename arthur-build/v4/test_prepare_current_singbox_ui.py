@@ -1,4 +1,6 @@
 import importlib.util
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -27,6 +29,57 @@ class ControllerPort(unittest.TestCase):
         self.assertIn('getenv("REQUEST_METHOD") ~= "POST"', hardened)
         with self.assertRaises(ValueError):
             porter.harden_controller(hardened)
+
+
+class RuntimePort(unittest.TestCase):
+    def test_status_rejects_old_contract_and_checks_the_runtime_sources(self):
+        old = '''    return sys.call("iptables -t nat -S SINGBOX_TCP >/dev/null 2>&1")==0 and "已启用" or "未启用"
+    local x=sys.exec("uci -q get dhcp.@dnsmasq[0].server 2>/dev/null")
+    return x:find("127.0.0.1#1053",1,true) and "已启用 → 127.0.0.1:1053" or "未启用"'''
+        new = porter.port_status(old)
+        self.assertNotIn("iptables", new)
+        self.assertNotIn("uci -q get dhcp", new)
+        self.assertIn("nft list chain inet fw4 arthur_singbox_udp", new)
+        self.assertIn("/tmp/dnsmasq.d/99-arthur-singbox.conf", new)
+        self.assertIn("/var/etc/dnsmasq.conf.*", new)
+        self.assertIn("待查询验证", new)
+        with self.assertRaises(ValueError):
+            porter.port_status(new)
+
+    def test_setup_refuses_to_proceed_without_generated_dns_include(self):
+        old = '''#!/bin/sh
+dns_on() { :; }
+start() {
+    wait_core || {
+        return 1
+    }
+
+    /usr/bin/sing-box-firewall start || { :; }
+}
+stop() { /usr/bin/sing-box-firewall stop; }
+'''
+        new = porter.port_setup(old)
+        self.assertNotIn("/usr/bin/sing-box-firewall start", new)
+        self.assertLess(new.index("dns_include_ready ||"),
+                        new.index("/usr/bin/sing-box-firewall4 start"))
+        self.assertEqual(subprocess.run(["sh", "-n"], input=new, text=True,
+                                        capture_output=True).returncode, 0)
+        with tempfile.TemporaryDirectory() as directory:
+            conf = Path(directory) / "dnsmasq.conf.test"
+            gate = new[new.index("dns_include_ready() {"):new.index("dns_on() {")]
+            gate = gate.replace("/var/etc/dnsmasq.conf.*", str(conf))
+            def ready():
+                return subprocess.run(["sh", "-c", gate + "\ndns_include_ready"],
+                                      capture_output=True).returncode == 0
+            self.assertFalse(ready())
+            conf.write_text("server=127.0.0.1#1053\n")
+            self.assertFalse(ready())
+            conf.write_text("conf-dir=/tmp/dnsmasq.d\n")
+            self.assertTrue(ready())
+            conf.write_text("conf-file=/tmp/dnsmasq.d/99-arthur-singbox.conf\n")
+            self.assertTrue(ready())
+        with self.assertRaises(ValueError):
+            porter.port_setup(new)
 
 
 if __name__ == "__main__":
