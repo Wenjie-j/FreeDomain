@@ -140,8 +140,10 @@ jobs:
         working-directory: openwrt
         run: |
           make -j2 package/feeds/packages/sing-box/compile V=s
+          # The ipkg-* tree is mutated after packaging with lib/apk bookkeeping.
+          # Audit OpenWrt's payload-only staging tree instead.
           package_root="$(find build_dir/target-*/sing-box-full/sing-box-1.14.1 \
-            -type d -path '*/ipkg-*/sing-box' -print -quit)"
+            -type d -path '*/.pkgdir/sing-box' -print -quit)"
           test -n "$package_root"
           test -x "$package_root/usr/bin/sing-box"
           test ! -e "$package_root/etc/init.d/sing-box"
