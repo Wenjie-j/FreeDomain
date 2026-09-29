@@ -10,11 +10,12 @@ spec.loader.exec_module(module)
 
 
 class Adapter:
-    def __init__(self, fail=None, blockers=()):
+    def __init__(self, fail=None, blockers=(), routing=(False, False)):
         self.fail = fail
         self.blockers = blockers
         self.calls = []
         self.reload_count = 0
+        self.routing = routing
 
     def preflight(self):
         self._call("preflight")
@@ -23,6 +24,10 @@ class Adapter:
     def fw4_reload(self):
         self.reload_count += 1
         self._call("fw4_reload", "fw4_reload_" + str(self.reload_count))
+
+    def inspect_owned_routing(self):
+        self._call("inspect_owned_routing")
+        return self.routing
 
     def _call(self, name, alternate=None):
         self.calls.append(name)
@@ -99,6 +104,19 @@ class TransactionModelTest(unittest.TestCase):
         foreign = Adapter(fail="verify_ownership")
         self.assertEqual(module.stop(foreign)["state"], "BLOCKED_NOT_OWNED")
         self.assertEqual(foreign.calls, ["verify_ownership"])
+
+    def test_reboot_reconciles_only_missing_resources_after_ownership_check(self):
+        adapter = Adapter(routing=(True, False))
+        result = module.reconcile_after_boot(adapter)
+        self.assertEqual(result["state"], "MODEL_RECONCILED")
+        self.assertNotIn("add_local_route", adapter.calls)
+        self.assertIn("add_masked_rule", adapter.calls)
+        self.assertLess(adapter.calls.index("verify_ownership"),
+                        adapter.calls.index("add_masked_rule"))
+        broken = Adapter(fail="inspect_owned_routing")
+        result = module.reconcile_after_boot(broken)
+        self.assertEqual(result["state"], "BLOCKED_RECONCILIATION")
+        self.assertNotIn("fw4_reload", broken.calls)
 
 
 if __name__ == "__main__":

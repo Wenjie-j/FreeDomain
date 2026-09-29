@@ -6,6 +6,7 @@ Never package this adapter in a firmware image or point it at live paths.
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from check_firewall4_mark_space import check
@@ -136,6 +137,31 @@ class SandboxAdapter:
                 hashlib.sha256(self.include.read_bytes()).hexdigest():
             raise AdapterError("include ownership mismatch")
         self.verified_owner = True
+
+    def inspect_owned_routing(self):
+        if not self.verified_owner:
+            raise AdapterError("routing inspection requires verified owner")
+        rules = self._run("ip", "-4", "rule", "show").stdout
+        routes = self._run("ip", "-4", "route", "show", "table", "166").stdout
+        mask = self._run("uci", "-q", "get", "mwan3.globals.mmx_mask").stdout.strip()
+        owned = re.compile(r"^\s*16666:\s+from all fwmark 0x66/0xff "
+                           r"(?:lookup|table) 166(?:\s|$)")
+        others, count = [], 0
+        for line in rules.splitlines():
+            if owned.match(line):
+                count += 1
+            else:
+                others.append(line)
+        if count > 1:
+            raise AdapterError("duplicate owned policy rule")
+        report = check("\n".join(others), "", "table inet fw4 {}", mask)
+        if report["blockers"]:
+            raise AdapterError("foreign mark or priority conflict")
+        lines = [line.strip() for line in routes.splitlines() if line.strip()]
+        if lines and (len(lines) != 1 or not re.fullmatch(
+                r"local default dev lo(?: scope host)?", lines[0])):
+            raise AdapterError("foreign route in owned table")
+        return bool(lines), bool(count)
 
     def remove_include(self):
         if not (self.created_marker or self.verified_owner):

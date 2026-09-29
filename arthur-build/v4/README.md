@@ -128,6 +128,14 @@ This adapter has no CLI or supplied real `fw4`, `ip` or `nft` runner, and must n
 be copied into firmware. A boot-safe target adapter and target `fw4 check`
 remain unimplemented.
 
+The offline `reconcile_after_boot()` path now checks the persistent include's
+ownership digest and the exact reserved rule/table contents before restoring
+missing volatile route/rule entries, reloading and verifying chains. A foreign
+entry or changed include blocks without touching it. This models a clean
+reboot only: firewall4 may load the persistent include before the proxy and
+policy route are ready, so startup ordering and interrupted-boot recovery
+remain unproved. It is not an automatic firmware rollback mechanism.
+
 `check_dnsmasq_include.py` looks only at a *copied generated* dnsmasq config,
 not the old UCI input. The old setup writes
 `/tmp/dnsmasq.d/99-arthur-singbox.conf`; if the generated config does not

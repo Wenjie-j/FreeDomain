@@ -11,7 +11,7 @@ sys.path.insert(0, str(HERE))
 spec = importlib.util.spec_from_file_location("sandbox_adapter", HERE / "firewall4_sandbox_adapter.py")
 sandbox = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sandbox)
-from firewall4_transaction_model import start, stop
+from firewall4_transaction_model import reconcile_after_boot, start, stop
 
 
 class FakeCommands:
@@ -25,15 +25,21 @@ class FakeCommands:
         self.ip_rules = "0: from all lookup local\n32766: from all lookup main\n"
         self.table_routes = ""
         self.mwan_mask = "0x3f00\n"
+        self.foreign_rule = ""
+        self.foreign_route = ""
 
     def __call__(self, args):
         self.calls.append(args)
         command = tuple(args)
         stdout, rc = "", 0
         if command == ("ip", "-4", "rule", "show"):
-            stdout = self.ip_rules
+            stdout = self.ip_rules + self.foreign_rule
+            if self.rule:
+                stdout += "16666: from all fwmark 0x66/0xff lookup 166\n"
         elif command == ("ip", "-4", "route", "show", "table", "166"):
-            stdout = self.table_routes
+            stdout = self.table_routes + self.foreign_route
+            if self.route:
+                stdout += "local default dev lo scope host\n"
         elif command == ("fw4", "print"):
             stdout = "table inet fw4 { chain prerouting {} }"
         elif command == ("uci", "-q", "get", "mwan3.globals.mmx_mask"):
@@ -134,6 +140,24 @@ chain arthur_singbox_tcp_dns { tcp dport 53 redirect to :53 }
         self.assertEqual(result["state"], "BLOCKED")
         self.assertTrue(link.is_symlink())
         self.assertEqual((self.root / "private/candidate.nft").read_bytes(), original)
+
+    def test_reconcile_after_simulated_reboot_recreates_missing_routing(self):
+        self.assertEqual(start(self.adapter())["state"], "MODEL_ACTIVE")
+        self.commands.route = self.commands.rule = False  # volatile state lost at boot
+        result = reconcile_after_boot(self.adapter())
+        self.assertEqual(result["state"], "MODEL_RECONCILED")
+        self.assertTrue(self.commands.route and self.commands.rule and self.commands.active)
+        self.assertEqual(stop(self.adapter())["state"], "MODEL_INACTIVE")
+
+    def test_reboot_reconciliation_blocks_foreign_table_166_route(self):
+        self.assertEqual(start(self.adapter())["state"], "MODEL_ACTIVE")
+        self.commands.route = self.commands.rule = False
+        self.commands.foreign_route = "default via 192.0.2.1 dev eth0\n"
+        before = len(self.commands.calls)
+        result = reconcile_after_boot(self.adapter())
+        self.assertEqual(result["state"], "BLOCKED_RECONCILIATION")
+        self.assertFalse(self.commands.route or self.commands.rule)
+        self.assertNotIn(["fw4", "reload"], self.commands.calls[before:])
 
 
 if __name__ == "__main__":

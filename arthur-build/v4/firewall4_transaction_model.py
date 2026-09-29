@@ -111,3 +111,36 @@ def stop(adapter):
         errors.append("STOP_ROUTING_FAILED:" + type(exc).__name__)
         return _result("stop", "MANUAL_RECOVERY_REQUIRED", steps, errors)
     return _result("stop", "MODEL_INACTIVE", steps, errors)
+
+
+def reconcile_after_boot(adapter):
+    """Offline model for a persisted include after volatile routes were lost."""
+    steps, errors = [], []
+    touched_routing = False
+    try:
+        adapter.verify_ownership()
+        steps.append("verify_ownership")
+        route_present, rule_present = adapter.inspect_owned_routing()
+        steps.append("inspect_owned_routing")
+        adapter.fw4_check()
+        steps.append("fw4_check")
+        if not route_present:
+            adapter.add_local_route()
+            touched_routing = True
+            steps.append("add_local_route")
+        if not rule_present:
+            adapter.add_masked_rule()
+            touched_routing = True
+            steps.append("add_masked_rule")
+        adapter.fw4_reload()
+        steps.append("fw4_reload")
+        adapter.verify_chains()
+        steps.append("verify_chains")
+        return _result("reconcile_after_boot", "MODEL_RECONCILED", steps, errors)
+    except Exception as exc:
+        errors.append("RECONCILIATION_FAILED:" + type(exc).__name__)
+        # A previously loaded include may still capture packets. Never remove
+        # the delivery path here without proving the live chains are gone.
+        state = ("MANUAL_RECOVERY_REQUIRED_KEEP_ROUTING" if touched_routing
+                 else "BLOCKED_RECONCILIATION")
+        return _result("reconcile_after_boot", state, steps, errors)
