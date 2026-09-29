@@ -90,7 +90,15 @@ python3 arthur-build/v4/prepare_current_singbox_ui.py \
   /private/path/current-ui.tar.gz \
   --services-archive /private/path/current-services.tar.gz \
   --output /private/path/v4-ui-candidate
+python3 arthur-build/v4/prepare_private_ui_package.py \
+  --staged /private/path/v4-ui-candidate \
+  --output /private/path/arthur-singbox-ui-private
 ```
+
+The second command creates a local OpenWrt package from only the six reviewed
+source/service paths. It excludes `/etc/config`, nodes, subscriptions, rules
+and generated firewall data, and does not publish or add the private package
+to CI. The package remains test-only until its services pass on the V4 target.
 
 The active page's JavaScript already uses POST for mutations and GET for the
 list, so the method restriction preserves its existing interaction. Before
