@@ -245,9 +245,14 @@ effective config and manifest.
 The first package-compile attempt (run `36537514745`) stopped while preparing
 host Lua because `staging_dir/host/bin/libdeflate-gzip` was missing. The
 workflow now installs OpenWrt host tools and the target toolchain before
-requesting the selected package. The run also printed unrelated Kconfig
-dependency-cycle diagnostics from the pinned feed mix; configuration retained
-the checked symbols, but the cycles still need review before an image build.
+requesting the selected package. That run also printed Kconfig dependency
+cycles from packages installed by `feeds install -a`, including the unrelated
+audio package `squeezelite-custom` and a chain involving `mwan3`, legacy
+iptables packages, and NSS PPPoE. Its checked symbols survived `defconfig`,
+which alone did not make those cycles acceptable. The next preflight installs
+only selected V4 feed packages plus their recursive dependencies, and blocks
+on any remaining recursive Kconfig diagnostic. It still does not validate
+the legacy mwan3 firewall rules against firewall4, TPROXY or NSS runtime.
 
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.

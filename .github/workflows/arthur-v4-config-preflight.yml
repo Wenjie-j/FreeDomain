@@ -38,7 +38,15 @@ jobs:
           python3 arthur-build/v4/write_pinned_feeds.py --output openwrt/feeds.conf
           cd openwrt
           ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          # Install only V4 candidates and their recursive dependencies.
+          # Installing the entire packages feed exposes unrelated Kconfig
+          # cycles (e.g. squeezelite-custom) to this router build.
+          ./scripts/feeds install \
+            sing-box mwan3 luci luci-compat luci-app-mwan3 \
+            kmod-qca-nss-drv kmod-qca-nss-ecm kmod-qca-nss-dp
+          test -L package/feeds/packages/sing-box
+          test -L package/feeds/packages/mwan3
+          test -L package/feeds/luci/luci-compat
           mkdir -p package/arthur
           git clone --filter=blob:none --no-checkout \
             https://github.com/jerrykuku/luci-theme-argon.git package/arthur/luci-theme-argon
@@ -64,7 +72,8 @@ jobs:
         run: |
           python3 "$GITHUB_WORKSPACE/arthur-build/v4/prepare_v4_config_from_seed.py" \
             --seed nss-setup/config-nss.seed --output .config
-          make defconfig
+          set -o pipefail
+          make defconfig 2>&1 | tee ../v4-defconfig.log
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -81,14 +90,17 @@ jobs:
           )
           config = set(Path('.config').read_text().splitlines())
           missing = [key for key in flags if f'CONFIG_{key}=y' not in config]
+          recursive = 'recursive dependency detected!' in Path('../v4-defconfig.log').read_text()
           report = {
               'classification': 'CONFIG_PREFLIGHT_ONLY_NO_FIRMWARE_IMAGE',
               'requested_flags': len(flags), 'missing_after_defconfig': missing,
-              'status': 'PASS_CONFIG_ONLY' if not missing else 'BLOCKED_MISSING_CONFIG',
+              'recursive_kconfig_dependency': recursive,
+              'status': 'PASS_CONFIG_ONLY' if not missing and not recursive
+                        else 'BLOCKED_CONFIG_DEPENDENCIES',
           }
           Path('../v4-config-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
           print(json.dumps(report, indent=2))
-          if missing:
+          if missing or recursive:
               raise SystemExit(2)
           PY
 
