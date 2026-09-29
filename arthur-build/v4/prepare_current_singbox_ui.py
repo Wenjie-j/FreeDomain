@@ -222,22 +222,43 @@ def port_manager(source):
         end
     end
     return true'''
-    new = '''    if restart then
-        local ok,re=restart_services()
-        if not ok then
-            local restored=sys.call("cp -f "..shquote(CFG..".manager-backup").." "..shquote(CFG))
-            if restored~=0 then
-                return nil,re.."；旧配置恢复失败，需人工检查"
-            end
+    new = '''    local function restore_previous(reason)
+        local restored=sys.call("cp -f "..shquote(CFG..".manager-backup").." "..shquote(CFG))
+        if restored~=0 then
+            return nil,reason.."；旧配置恢复失败，需人工检查"
+        end
+        if restart then
             local running,restore_error=restart_services()
             if not running then
-                return nil,re.."；旧配置已恢复，但服务恢复失败："..tostring(restore_error)
+                return nil,reason.."；旧配置已恢复，但服务恢复失败："..tostring(restore_error)
             end
-            return nil,re.."；旧配置和服务已恢复"
+            return nil,reason.."；旧配置和服务已恢复"
+        end
+        return nil,reason.."；旧配置已恢复"
+    end
+    if restart then
+        local ok,re=restart_services()
+        if not ok then
+            return restore_previous(re)
         end
     end
-    sys.call("uci set singbox.main.proxy_node="..shquote(db.active))
-    sys.call("uci commit singbox")
+    local previous=trim(sys.exec("uci -q get singbox.main.proxy_node 2>/dev/null"))
+    local set_rc=sys.call("uci set singbox.main.proxy_node="..shquote(db.active))
+    local commit_rc=set_rc==0 and sys.call("uci commit singbox") or -1
+    if set_rc~=0 or commit_rc~=0 then
+        local revert_rc
+        if previous=="" then
+            revert_rc=sys.call("uci -q delete singbox.main.proxy_node")
+        else
+            revert_rc=sys.call("uci set singbox.main.proxy_node="..shquote(previous))
+        end
+        local saved=revert_rc==0 and sys.call("uci commit singbox")==0
+        local _,failure=restore_previous("UCI 节点状态同步失败")
+        if not saved then
+            return nil,failure.."；UCI 旧值恢复失败，需人工检查"
+        end
+        return nil,failure
+    end
     return true'''
     if source.count(old) != 1:
         raise ValueError("manager restart/rollback contract changed")

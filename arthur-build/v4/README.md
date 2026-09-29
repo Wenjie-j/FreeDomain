@@ -69,8 +69,10 @@ local copy of the archive:
 
 The offline porter also moves the node-manager UCI update after a successful
 service restart. If restart fails, it checks both the old config copy and the
-old service restart before claiming recovery, otherwise it reports the exact
-remaining failure. This was checked against the user's source-only export and
+old service restart before claiming recovery. If the UCI set or commit fails,
+it attempts to restore the previous UCI value and main config, then restarts
+the previous service when requested; any failed restoration is reported rather
+than claiming success. This was checked against the user's source-only export and
 local tests; no live service or Lua integration test has been run.
 The staged DNS setup now creates a hash ownership marker alongside its own
 runtime dnsmasq file. It refuses to overwrite an existing unowned file and

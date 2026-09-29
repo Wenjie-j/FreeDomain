@@ -50,6 +50,9 @@ class RuntimePort(unittest.TestCase):
         self.assertIn("旧配置恢复失败，需人工检查", new)
         self.assertIn("旧配置已恢复，但服务恢复失败", new)
         self.assertIn("旧配置和服务已恢复", new)
+        self.assertIn("local commit_rc=set_rc==0 and sys.call(\"uci commit singbox\") or -1", new)
+        self.assertIn("UCI 旧值恢复失败，需人工检查", new)
+        self.assertIn('if previous=="" then', new)
         with self.assertRaises(ValueError):
             porter.port_manager(new)
 
