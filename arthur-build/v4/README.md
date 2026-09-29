@@ -242,6 +242,12 @@ router. The source-only custom UI and target firewall4 backend are not
 installed by this job. Its config preflight uses the pinned NSS seed rather
 than the exact V3 `final.config`, so later image builds must recheck their
 effective config and manifest.
+The first package-compile attempt (run `36537514745`) stopped while preparing
+host Lua because `staging_dir/host/bin/libdeflate-gzip` was missing. The
+workflow now installs OpenWrt host tools and the target toolchain before
+requesting the selected package. The run also printed unrelated Kconfig
+dependency-cycle diagnostics from the pinned feed mix; configuration retained
+the checked symbols, but the cycles still need review before an image build.
 
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.

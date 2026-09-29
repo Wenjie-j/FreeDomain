@@ -92,6 +92,13 @@ jobs:
               raise SystemExit(2)
           PY
 
+      - name: Install OpenWrt host tools and target toolchain
+        working-directory: openwrt
+        run: |
+          make -j2 tools/install V=s
+          test -x staging_dir/host/bin/libdeflate-gzip
+          make -j2 toolchain/install V=s
+
       - name: Compile Sing-box package for V4 (no image)
         working-directory: openwrt
         run: |
