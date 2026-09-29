@@ -31,6 +31,8 @@ def check(ip_rules, table_routes, fw4_rules, mwan_mask=None):
         except (ValueError, AttributeError):
             blockers.add("MWAN3_MARK_MASK_INVALID")
     for line in ip_rules.splitlines():
+        if re.match(r"\s*16666:\s", line):
+            blockers.add("ROUTING_RULE_PRIORITY_16666_IN_USE")
         if re.search(r"\b(?:lookup|table)\s+166\b", line):
             blockers.add("ROUTING_TABLE_166_ALREADY_REFERENCED")
         if "fwmark" not in line:

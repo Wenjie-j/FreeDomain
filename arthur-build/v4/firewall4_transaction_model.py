@@ -105,6 +105,8 @@ def stop(adapter):
         steps.append("delete_masked_rule")
         adapter.delete_local_route()
         steps.append("delete_local_route")
+        adapter.release_ownership()
+        steps.append("release_ownership")
     except Exception as exc:
         errors.append("STOP_ROUTING_FAILED:" + type(exc).__name__)
         return _result("stop", "MANUAL_RECOVERY_REQUIRED", steps, errors)

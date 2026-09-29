@@ -117,6 +117,17 @@ state, reboot reconciliation, coordination with concurrent firewall reloads,
 exact `fw4`/`ip`/`nft` behavior on the V4 target,
 and failure injection on a recoverable test image.
 
+`firewall4_sandbox_adapter.py` connects that model to command-shaped calls
+and private include files *only inside* a marked test root, with an
+explicit injected fake command runner. It checks copied live-state output for
+mark/table conflicts and records a digest-based ownership marker; a changed
+include blocks stop rather than deleting someone else's rule. It rejects a
+missing simulation marker and a real command runner. The tests exercise a
+second adapter instance for stop, conflicts, tampering and reload failure.
+This adapter has no CLI or supplied real `fw4`, `ip` or `nft` runner, and must not
+be copied into firmware. A boot-safe target adapter and target `fw4 check`
+remain unimplemented.
+
 `check_dnsmasq_include.py` looks only at a *copied generated* dnsmasq config,
 not the old UCI input. The old setup writes
 `/tmp/dnsmasq.d/99-arthur-singbox.conf`; if the generated config does not

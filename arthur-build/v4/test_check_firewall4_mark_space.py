@@ -24,6 +24,9 @@ class CollisionScreenTest(unittest.TestCase):
         self.assertIn("ROUTING_TABLE_166_ALREADY_REFERENCED", report["blockers"])
         self.assertIn("ROUTING_TABLE_166_NOT_EMPTY", report["blockers"])
         self.assertIn("PROXY_FIREWALL_OBJECT_ALREADY_PRESENT", report["blockers"])
+        self.assertIn("ROUTING_RULE_PRIORITY_16666_IN_USE",
+                      module.check("0: from all lookup local\n16666: from all lookup 200", "",
+                                   "table inet fw4 {}", "0x3f00")["blockers"])
 
     def test_missing_or_overlapping_mwan_mask_fails_closed(self):
         self.assertIn("MWAN3_MARK_MASK_NOT_CAPTURED", module.check("", "", "")["blockers"])

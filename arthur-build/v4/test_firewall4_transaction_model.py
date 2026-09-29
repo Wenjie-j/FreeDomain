@@ -33,7 +33,7 @@ class Adapter:
 for method in ("validate_candidate_offline", "stage_include", "fw4_check", "add_local_route", "add_masked_rule",
                "verify_chains", "remove_include", "restore_include",
                "delete_masked_rule", "delete_local_route", "verify_ownership",
-               "verify_chains_absent"):
+               "verify_chains_absent", "release_ownership"):
     setattr(Adapter, method, lambda self, method=method: self._call(method))
 
 
@@ -89,7 +89,8 @@ class TransactionModelTest(unittest.TestCase):
         self.assertEqual(result["state"], "MODEL_INACTIVE")
         self.assertEqual(adapter.calls, ["verify_ownership", "remove_include",
                                          "fw4_reload", "verify_chains_absent",
-                                         "delete_masked_rule", "delete_local_route"])
+                                         "delete_masked_rule", "delete_local_route",
+                                         "release_ownership"])
         failed = Adapter(fail="fw4_reload")
         self.assertEqual(module.stop(failed)["state"],
                          "MANUAL_RECOVERY_REQUIRED_KEEP_ROUTING")
