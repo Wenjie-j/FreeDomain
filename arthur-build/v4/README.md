@@ -196,19 +196,35 @@ dependencies, so firewall4/NSS/proxy interaction is unverified. The lock
 therefore does **not** authorize a V4 image build or distribution.
 
 `candidate.config.fragment` and `prepare_candidate_config.py` stage the
-available UI, multi-WAN, TUN and Mesh packages on an offline V3 config copy.
+available UI, multi-WAN, TUN, nft TPROXY and Mesh packages on an offline V3
+config copy. The nft TPROXY selection is required by the V4 component gate.
 The fragment deliberately excludes Sing-box until the core has been rebuilt
 and the current custom UI source can be integrated. Run `make defconfig` in the
 isolated tree and compare the effective config and produced manifest; the
 fragment alone does not prove a package built or that its UI works.
 
 The official v1.14.1 source archive is pinned by SHA-256 in `feeds.lock.json`.
-`prepare_singbox_recipe.py` verifies its root `go.mod` (Go 1.25.5 minimum) and
-changes only the version/hash in the reviewed 1.14.0 OpenWrt package recipe.
+`prepare_singbox_recipe.py` verifies either that archive or the pinned Git
+commit and tag, including its `go.mod` (Go 1.25.5 minimum), and changes only
+the version/hash in the reviewed 1.14.0 OpenWrt package recipe. The resulting
+`package/sing-box/Makefile` is a prepared overlay for the pinned packages feed;
+place it at `feeds/packages/net/sing-box/Makefile` inside an isolated V4 build
+tree after fetching the locked feeds. Its relative Go package include requires
+that location, and the adjacent feed `files/` directory must be retained.
+When prepared from a Git object, the archive hash still needs verification by
+the build tree's `make download`; the committed recipe itself has not been
+downloaded or compiled. The feed recipe also installs its own
+`/etc/init.d/sing-box`, `/etc/config/sing-box` and default JSON. Review their
+ownership and interaction with the user's existing custom setup service
+before enabling the package in a release image.
 The current candidate packages feed defaults to Go 1.27; actual cross-build
 and runtime compatibility remain untested. `singbox-1.14.1.config.fragment`
 records the old core's five required feature tags, but is not applied by the
-base config staging script. No old Linux 4.4 binary is copied into V4.
+base config staging script. Applying it after the candidate fragment to a
+copy of the real V3 `final.config` selects the core and all five tags exactly
+once in an offline check; `make defconfig` and a package build are still needed
+to test whether the selected packages resolve. No old Linux 4.4 binary is
+copied into V4.
 
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.

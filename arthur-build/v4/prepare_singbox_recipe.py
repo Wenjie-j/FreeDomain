@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Prepare an offline 1.14.1 package recipe after verifying its source archive."""
+"""Prepare an offline 1.14.1 recipe from a pinned archive or Git object."""
 import argparse
 import hashlib
 import json
 import re
+import subprocess
 import tarfile
 from pathlib import Path
 
@@ -33,6 +34,29 @@ def verify_archive(archive: Path, lock: dict) -> None:
             raise ValueError("unexpected Go toolchain requirement")
 
 
+def verify_checkout(checkout: Path, lock: dict) -> None:
+    """Verify a pinned git object; the package download still checks PKG_HASH."""
+    expected = lock["sing_box_source"]
+    if expected["tag"] != "v1.14.1" or expected["go_mod_minimum"] != "1.25.5":
+        raise ValueError("unreviewed Sing-box source metadata")
+
+    def git(*args):
+        try:
+            return subprocess.run(["git", "-C", str(checkout), *args], check=True,
+                                  capture_output=True, text=True, timeout=30).stdout.strip()
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            raise ValueError("cannot verify pinned Sing-box git object") from None
+
+    if (git("rev-parse", "HEAD") != expected["revision"]
+            or git("rev-parse", "refs/tags/" + expected["tag"] + "^{commit}")
+            != expected["revision"]):
+        raise ValueError("Sing-box checkout/tag revision mismatch")
+    contents = git("show", "HEAD:go.mod")
+    if (not re.search(r"^module github\.com/sagernet/sing-box$", contents, re.M)
+            or not re.search(r"^go 1\.25\.5$", contents, re.M)):
+        raise ValueError("unexpected Sing-box git object go.mod")
+
+
 def adapt_makefile(original: str, lock: dict) -> str:
     source = lock["sing_box_source"]
     if source["tag"] != "v1.14.1" or source["revision"] != \
@@ -49,16 +73,25 @@ def adapt_makefile(original: str, lock: dict) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--lock", type=Path, default=Path(__file__).with_name("feeds.lock.json"))
-    ap.add_argument("--source-archive", type=Path, required=True)
+    source = ap.add_mutually_exclusive_group(required=True)
+    source.add_argument("--source-archive", type=Path)
+    source.add_argument("--source-checkout", type=Path,
+                        help="Pinned Git object; codeload hash still checked by make download")
     ap.add_argument("--feed-makefile", type=Path, required=True)
     ap.add_argument("--output", type=Path, required=True,
                     help="Prepared Makefile for an isolated V4 build tree")
     args = ap.parse_args()
     lock = json.loads(args.lock.read_text(encoding="utf-8"))
-    verify_archive(args.source_archive, lock)
+    if args.source_archive:
+        verify_archive(args.source_archive, lock)
+    else:
+        verify_checkout(args.source_checkout, lock)
     prepared = adapt_makefile(args.feed_makefile.read_text(encoding="utf-8"), lock)
+    if args.output.exists():
+        raise ValueError("refusing to overwrite an existing prepared recipe")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(prepared, encoding="utf-8")
-    print("Prepared offline Sing-box 1.14.1 recipe; no package has been built.")
+    print("Prepared offline Sing-box 1.14.1 recipe; codeload hash/build still untested.")
 
 
 if __name__ == "__main__":

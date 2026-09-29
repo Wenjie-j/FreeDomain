@@ -26,6 +26,7 @@ CONFIG_ATH11K_NSS_SUPPORT=y
         self.assertNotIn("CONFIG_PACKAGE_sing-box=y", result)
         self.assertIn("CONFIG_PACKAGE_luci-theme-argon=y", result)
         self.assertIn("CONFIG_PACKAGE_luci-app-mwan3=y", result)
+        self.assertIn("CONFIG_PACKAGE_kmod-nft-tproxy=y", result)
 
     def test_rejects_unrelated_build_config(self):
         with self.assertRaises(ValueError):

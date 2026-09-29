@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import pathlib
+import subprocess
 import tempfile
 import unittest
 
@@ -30,6 +31,29 @@ class SingBoxRecipeTest(unittest.TestCase):
             bad.write_bytes(b"wrong source")
             with self.assertRaises(ValueError):
                 module.verify_archive(bad, self.lock)
+
+    def test_checkout_verifies_tag_commit_and_go_mod_without_worktree_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            def git(*args):
+                return subprocess.run(["git", "-C", str(root), *args], check=True,
+                                      capture_output=True, text=True).stdout.strip()
+            git("init", "-q")
+            (root / "go.mod").write_text("module github.com/sagernet/sing-box\n\ngo 1.25.5\n")
+            git("add", "go.mod")
+            git("-c", "user.name=Arthur Test", "-c", "user.email=test@example.invalid",
+                "commit", "-qm", "source fixture")
+            git("tag", "v1.14.1")
+            lock = json.loads(json.dumps(self.lock))
+            lock["sing_box_source"]["revision"] = git("rev-parse", "HEAD")
+            (root / "go.mod").unlink()
+            module.verify_checkout(root, lock)
+            (root / "go.mod").write_text("go 1.24.0\n")
+            git("add", "go.mod")
+            git("-c", "user.name=Arthur Test", "-c", "user.email=test@example.invalid",
+                "commit", "-qm", "wrong revision")
+            with self.assertRaises(ValueError):
+                module.verify_checkout(root, lock)
 
 
 if __name__ == "__main__":
