@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - arthur-v4-backend-integration
+      - arthur-v4-core-report
     paths:
       - '.github/workflows/arthur-v4-static.yml'
       - 'arthur-build/v4/**'
