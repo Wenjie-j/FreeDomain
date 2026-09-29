@@ -19,6 +19,7 @@ on:
       - 'arthur-build/v4/package/arthur-singbox-firewall4-test/**'
       - 'arthur-build/v4/sing-box-firewall4.candidate'
       - 'arthur-build/v4/validate_firewall4_test_package.py'
+      - 'arthur-build/v4/report_firewall4_test_package.py'
   workflow_dispatch:
 
 permissions:
@@ -154,7 +155,22 @@ jobs:
             --apk bin/packages/aarch64_cortex-a53/packages/sing-box-1.14.1-r1.apk \
             --config .config --output-dir ..
           make -j2 package/arthur/arthur-singbox-firewall4-test/compile V=s
-          test -n "$(find bin/packages -name 'arthur-singbox-firewall4-test-*.apk' -print -quit)"
+          firewall_root="$(find build_dir/target-* -type d \
+            -path '*/arthur-singbox-firewall4-test-0.1/.pkgdir/arthur-singbox-firewall4-test' \
+            -print -quit)"
+          firewall_apk="$(find bin/packages \
+            -name 'arthur-singbox-firewall4-test-0.1-r1.apk' -print -quit)"
+          test -n "$firewall_root"
+          test -n "$firewall_apk"
+          test -x "$firewall_root/usr/bin/sing-box-firewall4"
+          test -f "$firewall_root/usr/share/arthur-v4/firewall4-test-only"
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_firewall4_test_package.py" \
+            --package-root "$firewall_root" \
+            --apk "$firewall_apk" \
+            --config .config \
+            --candidate "$GITHUB_WORKSPACE/arthur-build/v4/sing-box-firewall4.candidate" \
+            --core-owners ../v4-core-file-owners.json \
+            --output-dir ..
 
       - name: Upload configuration report
         if: always()
@@ -166,6 +182,8 @@ jobs:
             v4-core-package-build.json
             v4-core-build-trace.json
             v4-core-file-owners.json
+            v4-firewall4-package-build.json
+            v4-package-file-owners.partial.json
             openwrt/bin/packages/**/sing-box-1.14.1-r1.apk
             openwrt/bin/packages/**/arthur-singbox-firewall4-test-*.apk
             openwrt/.config
