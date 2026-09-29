@@ -102,6 +102,21 @@ activation. Absence of a collision in copied text cannot prove live priority,
 reload behavior, NSS acceleration or routing correctness. No start/stop
 firewall4 service exists yet.
 
+`firewall4_transaction_model.py` now exercises the proposed start/stop order
+against a simulated adapter: preflight, validate the candidate without live
+installation, add the local table 166 route and masked `0x66/0xff` rule, stage
+the private include, `fw4 check`, reload, verify
+chains; failures remove the include, reload to remove live proxy rules, then
+release only the routing resources acquired in that attempt. A failed rollback
+retains the local route so packets are not left with a live TPROXY rule and no
+delivery path. Stop requires proof of ownership before removing anything and
+removes the route only after firewall reload and chain absence checks. This
+module has no CLI or OpenWrt command adapter and cannot be installed as
+`/usr/bin/sing-box-firewall4`. The real adapter still needs durable ownership
+state, reboot reconciliation, coordination with concurrent firewall reloads,
+exact `fw4`/`ip`/`nft` behavior on the V4 target,
+and failure injection on a recoverable test image.
+
 `check_dnsmasq_include.py` looks only at a *copied generated* dnsmasq config,
 not the old UCI input. The old setup writes
 `/tmp/dnsmasq.d/99-arthur-singbox.conf`; if the generated config does not
