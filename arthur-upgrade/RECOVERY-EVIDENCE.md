@@ -33,3 +33,33 @@ python3 arthur-upgrade/gpt_capture_audit.py \
 
 Even two valid GPT captures do not approve GPT repair; the device recovery path
 must be proven separately.
+
+## Combine the evidence with the firmware gate
+
+The main upgrade gate accepts both sanitized reports and merges only recognized
+blocker codes.  It never copies raw partition evidence or unknown fields into
+its output.  Missing, malformed, spoofed, or unexpectedly permissive reports
+fail closed:
+
+```sh
+python3 arthur-upgrade/upgrade_gate.py \
+  --inventory arthur-upgrade/inventory-arthur-1gb-v3.json \
+  --sysupgrade /path/to/sysupgrade.bin \
+  --network-report /tmp/legacy-network-report.json \
+  --hlos-recovery-report /tmp/arthur-hlos-recovery-report.json \
+  --gpt-recovery-report /tmp/arthur-gpt-report.json \
+  --output /tmp/arthur-combined-upgrade-gate.json
+```
+
+## Missing boot-slot evidence
+
+The earlier filtered boot report proves that this router uses `bootcmd=bootipq`
+and exposes no ordinary U-Boot slot variable. It did not capture the Qualcomm
+BOOTCONFIG partitions. `collect_boot_slot_evidence.sh` is a BusyBox-ash
+compatible collector with a fixed read allowlist: p2 BOOTCONFIG, p3
+BOOTCONFIG1, and p12 APPSBLENV, each exactly 256 KiB. It refuses other boards
+or partition sizes and writes only to a temporary directory and output archive.
+
+The resulting archive contains raw boot metadata and must remain private. The
+collector does not flash, repair GPT, set environment variables, restart a
+service, or reboot the router.

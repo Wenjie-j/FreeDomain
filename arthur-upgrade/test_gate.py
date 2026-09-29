@@ -53,5 +53,33 @@ class PreflightTests(unittest.TestCase):
             report=evaluate(self.layout,self.image,invalid)
             self.assertIn('NETWORK_MIGRATION_REPORT_INVALID',report['blockers'])
             self.assertNotIn('secret',json.dumps(report))
+    def test_recovery_evidence_is_merged_without_copying_private_fields(self):
+        hlos={'classification':'READ_ONLY_RECOVERY_EVIDENCE_NOT_FLASH_APPROVAL',
+              'decision':'BLOCKED_WRITE','write_approved':False,
+              'blockers':['HLOS_1_NO_VERIFIED_FIT_AT_OFFSET_ZERO'],
+              'partitions':{'private':'DO_NOT_COPY'}}
+        gpt={'classification':'READ_ONLY_GPT_EVIDENCE_NOT_REPAIR_APPROVAL',
+             'decision':'BLOCKED_WRITE','write_approved':False,
+             'blockers':['TERMINAL_BACKUP_GPT_HEADER_MISSING'],
+             'capture':{'private':'DO_NOT_COPY'}}
+        report=evaluate(self.layout,self.image,None,hlos,gpt)
+        self.assertIn(
+            'HLOS_RECOVERY_EVIDENCE_HLOS_1_NO_VERIFIED_FIT_AT_OFFSET_ZERO',
+            report['blockers'])
+        self.assertIn(
+            'GPT_RECOVERY_EVIDENCE_TERMINAL_BACKUP_GPT_HEADER_MISSING',
+            report['blockers'])
+        self.assertNotIn('DO_NOT_COPY',json.dumps(report))
+    def test_missing_or_spoofed_recovery_evidence_fails_closed(self):
+        report=evaluate(self.layout,self.image)
+        self.assertIn('HLOS_RECOVERY_EVIDENCE_REPORT_MISSING',report['blockers'])
+        self.assertIn('GPT_RECOVERY_EVIDENCE_REPORT_MISSING',report['blockers'])
+        spoofed={'classification':'READ_ONLY_RECOVERY_EVIDENCE_NOT_FLASH_APPROVAL',
+                 'decision':'PASS','write_approved':True,
+                 'blockers':['PASSWORD=secret']}
+        report=evaluate(self.layout,self.image,None,spoofed,spoofed)
+        self.assertIn('HLOS_RECOVERY_EVIDENCE_REPORT_INVALID',report['blockers'])
+        self.assertIn('GPT_RECOVERY_EVIDENCE_REPORT_INVALID',report['blockers'])
+        self.assertNotIn('secret',json.dumps(report))
 if __name__=='__main__':
     unittest.main()

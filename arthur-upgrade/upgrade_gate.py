@@ -17,6 +17,21 @@ NETWORK_BLOCKERS = frozenset((
     'LAN_OR_WAN_INTERFACE_MISSING',
     'MANAGEMENT_ADDRESS_REQUIRES_EXPLICIT_MIGRATION',
 ))
+HLOS_RECOVERY_BLOCKERS = frozenset((
+    'HLOS_NO_VERIFIED_FIT_AT_OFFSET_ZERO',
+    'HLOS_1_NO_VERIFIED_FIT_AT_OFFSET_ZERO',
+    'HLOS_1_CONTAINS_UNCLASSIFIED_NONZERO_DATA',
+    'HLOS_1_SQUASHFS_MARKER_REQUIRES_CLASSIFICATION',
+    'BOOT_SLOT_SELECTION_MECHANISM_NOT_CAPTURED',
+    'HLOS_1_BOOT_NOT_PROVEN',
+))
+GPT_RECOVERY_BLOCKERS = frozenset((
+    'PRIMARY_GPT_CAPTURE_INVALID',
+    'PRIMARY_GPT_BACKUP_LBA_NOT_AT_CURRENT_DISK_END',
+    'TERMINAL_BACKUP_GPT_HEADER_MISSING',
+    'TERMINAL_BACKUP_GPT_CAPTURE_INVALID',
+    'GPT_REPAIR_AND_RECOVERY_PATH_NOT_APPROVED',
+))
 
 def inspect_image(path: Path) -> dict:
     with tarfile.open(path, mode='r:*') as src:
@@ -56,7 +71,27 @@ def inspect_image(path: Path) -> dict:
         'note': 'FIT subimage digests verified; no signature, boot or recovery verification',
     }
 
-def evaluate(layout: dict, image: dict, network_report: dict | None = None) -> dict:
+def _merge_evidence(reasons: list, report: dict | None, *, classification: str,
+                    allowed: frozenset, prefix: str) -> None:
+    if report is None:
+        reasons.append(prefix + '_REPORT_MISSING')
+    elif (not isinstance(report, dict)
+          or report.get('classification') != classification
+          or report.get('decision') != 'BLOCKED_WRITE'
+          or report.get('write_approved') is not False
+          or not isinstance(report.get('blockers'), list)
+          or not report['blockers']
+          or any(not isinstance(code, str) or code not in allowed
+                 for code in report['blockers'])):
+        reasons.append(prefix + '_REPORT_INVALID')
+    else:
+        reasons.extend(prefix + '_' + code
+                       for code in sorted(set(report['blockers'])))
+
+
+def evaluate(layout: dict, image: dict, network_report: dict | None = None,
+             hlos_recovery_report: dict | None = None,
+             gpt_recovery_report: dict | None = None) -> dict:
     reasons=[]
     required_fields=('model','physical_ram_mib','hlos_bytes','rootfs_bytes',
        'has_rootfs_1','backup_hlos_boot_tested','backup_gpt_valid',
@@ -101,6 +136,14 @@ def evaluate(layout: dict, image: dict, network_report: dict | None = None) -> d
         reasons.append('NETWORK_MIGRATION_REPORT_INVALID')
     else:
         reasons.extend('NETWORK_' + code for code in sorted(set(network_report['blockers'])))
+    _merge_evidence(
+        reasons, hlos_recovery_report,
+        classification='READ_ONLY_RECOVERY_EVIDENCE_NOT_FLASH_APPROVAL',
+        allowed=HLOS_RECOVERY_BLOCKERS, prefix='HLOS_RECOVERY_EVIDENCE')
+    _merge_evidence(
+        reasons, gpt_recovery_report,
+        classification='READ_ONLY_GPT_EVIDENCE_NOT_REPAIR_APPROVAL',
+        allowed=GPT_RECOVERY_BLOCKERS, prefix='GPT_RECOVERY_EVIDENCE')
     reasons.append('SIGNED_RELEASE_AND_PROVEN_ROLLBACK_NOT_YET_APPROVED')
     return {'offline_image':image, 'write_approved':False,
         'read_only':True,'blockers':reasons,
@@ -114,10 +157,19 @@ def main(argv=None):
     p.add_argument('--output',type=Path)
     p.add_argument('--network-report',type=Path,
                    help='Sanitized, read-only legacy network preflight JSON')
+    p.add_argument('--hlos-recovery-report',type=Path,
+                   help='Read-only output from hlos_recovery_audit.py')
+    p.add_argument('--gpt-recovery-report',type=Path,
+                   help='Read-only output from gpt_capture_audit.py')
     args=p.parse_args(argv)
     try:
         network=json.loads(args.network_report.read_text()) if args.network_report else None
-        doc=evaluate(json.loads(args.inventory.read_text()),inspect_image(args.sysupgrade),network)
+        hlos=(json.loads(args.hlos_recovery_report.read_text())
+              if args.hlos_recovery_report else None)
+        gpt=(json.loads(args.gpt_recovery_report.read_text())
+             if args.gpt_recovery_report else None)
+        doc=evaluate(json.loads(args.inventory.read_text()),inspect_image(args.sysupgrade),
+                     network,hlos,gpt)
     except (OSError, ValueError, TypeError, tarfile.TarError, KeyError) as exc:
         print('FAIL: '+str(exc),file=sys.stderr)
         return 3
