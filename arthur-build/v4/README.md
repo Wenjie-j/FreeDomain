@@ -185,9 +185,13 @@ manifest and build flags. Upstream package locations (availability only):
 
 These package definitions establish a build path, not functional compatibility.
 
-`feeds.lock.json` records eight immutable candidate feed commits; run
+`feeds.lock.json` records seven immutable feed commits and a separate pinned
+Argon package repository. Run
 `write_pinned_feeds.py --output /path/to/isolated-openwrt/feeds.conf` before
-updating feeds. The selected packages feed defines Sing-box 1.14.0. The user's
+updating feeds, then clone Argon at the locked commit under the build tree's
+`package/` directory. Its `Makefile` lives at repository root, so an ordinary
+OpenWrt feed would not discover that package. The selected packages feed
+defines Sing-box 1.14.0. The user's
 current Sing-box 1.14.1 executable was built for the old Linux 4.4 firmware;
 version equality would not establish V4 compatibility. The official v1.14.1
 source tag is pinned separately in the lock for a new package build with the
@@ -225,6 +229,16 @@ copy of the real V3 `final.config` selects the core and all five tags exactly
 once in an offline check; `make defconfig` and a package build are still needed
 to test whether the selected packages resolve. No old Linux 4.4 binary is
 copied into V4.
+
+`.github/workflows/arthur-v4-config-preflight.yml` now checks out the pinned
+base and feeds, stages Argon as a package, downloads and verifies the pinned
+Sing-box source archive, compares the generated 1.14.1 recipe byte for byte
+with the committed overlay, and runs `make defconfig` on a V3-equivalent NSS
+seed plus the V4 fragments. It reports any package or feature selection lost
+by dependency resolution. This job deliberately stops before compilation and
+does not produce a firmware image; even a green preflight cannot authorize
+upgrading the router. The source-only custom UI and target firewall4 backend
+are not installed by this job.
 
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.

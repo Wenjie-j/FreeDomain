@@ -13,8 +13,9 @@ class FeedLockTest(unittest.TestCase):
     def test_every_candidate_is_a_full_immutable_commit(self):
         lock = json.loads((base / "feeds.lock.json").read_text(encoding="utf-8"))
         lines = module.generate(lock).splitlines()
-        self.assertEqual(len(lines), 9)
-        self.assertTrue(lines[-1].startswith("src-git argon "))
+        self.assertEqual(len(lines), 8)
+        self.assertTrue(lines[-1].startswith("src-git video "))
+        self.assertFalse(any(line.startswith("src-git argon ") for line in lines))
         self.assertTrue(all("^" in line for line in lines[1:]))
 
     def test_refuses_unreviewed_url(self):

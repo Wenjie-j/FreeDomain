@@ -21,6 +21,10 @@ def generate(lock: dict) -> str:
     for feed in feeds:
         if not SHA.fullmatch(feed["revision"]) or not URL.fullmatch(feed["repository"]):
             raise ValueError("invalid feed revision or repository URL")
+        # Argon's Makefile is at repository root. OpenWrt feeds expect packages
+        # below that root, so stage this pinned repository as a package instead.
+        if feed["name"] == "argon":
+            continue
         lines.append(f"src-git {feed['name']} {feed['repository']}^{feed['revision']}")
     return "\n".join(lines) + "\n"
 

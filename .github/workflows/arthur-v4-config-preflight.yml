@@ -1,0 +1,105 @@
+name: Arthur V4 pinned config preflight (no image)
+
+on:
+  push:
+    branches:
+      - arthur-v4-backend-integration
+    paths:
+      - '.github/workflows/arthur-v4-config-preflight.yml'
+      - 'arthur-build/v4/candidate.config.fragment'
+      - 'arthur-build/v4/singbox-1.14.1.config.fragment'
+      - 'arthur-build/v4/feeds.lock.json'
+      - 'arthur-build/v4/write_pinned_feeds.py'
+      - 'arthur-build/v4/prepare_v4_config_from_seed.py'
+      - 'arthur-build/v4/prepare_singbox_recipe.py'
+      - 'arthur-build/v4/package/sing-box/Makefile'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenWrt configuration dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib \
+            gettext git libncurses-dev libssl-dev python3 python3-setuptools \
+            rsync swig unzip zlib1g-dev file wget curl ccache jq time
+
+      - name: Checkout pinned base and feeds
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/qosmio/openwrt-ipq.git openwrt
+          git -C openwrt checkout 92a2d104145c8d265851c4b388a41bd8e9c21cd9
+          python3 arthur-build/v4/write_pinned_feeds.py --output openwrt/feeds.conf
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          mkdir -p package/arthur
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/jerrykuku/luci-theme-argon.git package/arthur/luci-theme-argon
+          git -C package/arthur/luci-theme-argon checkout 0546f975a66796a89ff988524290c4a2e2d01855
+          test -f package/arthur/luci-theme-argon/Makefile
+
+      - name: Verify Sing-box source and stage the reviewed recipe
+        run: |
+          curl -fL --retry 2 -o "$RUNNER_TEMP/sing-box-v1.14.1.tar.gz" \
+            https://codeload.github.com/SagerNet/sing-box/tar.gz/v1.14.1
+          python3 arthur-build/v4/prepare_singbox_recipe.py \
+            --source-archive "$RUNNER_TEMP/sing-box-v1.14.1.tar.gz" \
+            --feed-makefile openwrt/feeds/packages/net/sing-box/Makefile \
+            --output "$RUNNER_TEMP/verified-sing-box.Makefile"
+          cmp "$RUNNER_TEMP/verified-sing-box.Makefile" \
+            arthur-build/v4/package/sing-box/Makefile
+          cp "$RUNNER_TEMP/verified-sing-box.Makefile" \
+            openwrt/feeds/packages/net/sing-box/Makefile
+          test -f openwrt/feeds/packages/net/sing-box/files/sing-box.init
+
+      - name: Resolve candidate packages with make defconfig
+        working-directory: openwrt
+        run: |
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/prepare_v4_config_from_seed.py" \
+            --seed nss-setup/config-nss.seed --output .config
+          make defconfig
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          flags = (
+              'TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01',
+              'TARGET_ROOTFS_INITRAMFS', 'ATH11K_MEM_PROFILE_1G',
+              'NSS_FIRMWARE_VERSION_11_4', 'PACKAGE_kmod-qca-nss-drv',
+              'PACKAGE_kmod-qca-nss-ecm', 'PACKAGE_luci-theme-argon',
+              'PACKAGE_luci-compat', 'PACKAGE_kmod-nft-tproxy',
+              'PACKAGE_sing-box', 'PACKAGE_mwan3', 'PACKAGE_luci-app-mwan3',
+              'PACKAGE_wpad-mesh-openssl', 'SINGBOX_WITH_QUIC',
+              'SINGBOX_WITH_DHCP', 'SINGBOX_WITH_WIREGUARD',
+              'SINGBOX_WITH_UTLS', 'SINGBOX_WITH_CLASH_API',
+          )
+          config = set(Path('.config').read_text().splitlines())
+          missing = [key for key in flags if f'CONFIG_{key}=y' not in config]
+          report = {
+              'classification': 'CONFIG_PREFLIGHT_ONLY_NO_FIRMWARE_IMAGE',
+              'requested_flags': len(flags), 'missing_after_defconfig': missing,
+              'status': 'PASS_CONFIG_ONLY' if not missing else 'BLOCKED_MISSING_CONFIG',
+          }
+          Path('../v4-config-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          if missing:
+              raise SystemExit(2)
+          PY
+
+      - name: Upload configuration report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arthur-v4-config-preflight-no-image
+          path: |
+            v4-config-preflight.json
+            openwrt/.config
+            openwrt/feeds.conf
+          if-no-files-found: warn
+          retention-days: 14
