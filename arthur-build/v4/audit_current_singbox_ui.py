@@ -80,6 +80,7 @@ def audit(path, services_archive=None):
     manager = contents.get(SOURCE[3], "")
     status = contents.get(SOURCE[2], "")
     firewall = contents.get("usr/bin/sing-box-firewall", "")
+    updater = contents.get("usr/bin/sing-box-update-rules", "")
     setup = contents.get("etc/init.d/sing-box-setup", "")
 
     routes = re.findall(r'entry\(\{\s*"admin","services","singbox","api","([a-z_]+)"\}', controller)
@@ -93,6 +94,11 @@ def audit(path, services_archive=None):
         "setup_uses_core_ports": all(":" + port + " " in setup for port in ("7892", "7895", "1053")),
         "setup_calls_current_firewall": "/usr/bin/sing-box-firewall start" in setup,
         "setup_uses_runtime_dns_file": "/tmp/dnsmasq.d" in setup,
+        "cn_firewall_list_updated": not (
+            "geoip-cn.json" in firewall
+            and "geoip-cn.srs" in updater
+            and "geoip-cn.json" not in updater
+        ),
         "controller_enforces_post_method": bool(re.search(r'REQUEST_METHOD|\bpost\s*\(', controller)),
         "no_legacy_firewall_commands": not any(x in firewall for x in (
             "iptables", "ip6tables", "ipset", "TPROXY")),

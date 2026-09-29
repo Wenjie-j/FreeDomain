@@ -36,7 +36,12 @@ contract; it does not validate the new dnsmasq inclusion or firewall backend.
 The old firewall implementation
 uses iptables/ipset and has a fixed private upstream endpoint. It cannot be
 used as a firewall4/NSS/mwan3 backend. The status page also checks an iptables
-chain. The service and firewall replacement remain blocking work.
+chain. The rule updater downloads `geoip-cn.srs`, while the old firewall reads
+`geoip-cn.json`; V4 must generate a verified nftables list from the same
+release and preserve a working copy on update failure. See
+`CN-NSS-ACCEPTANCE.md` for the distinct domestic-direct and actual NSS
+hardware-acceleration tests. The service and firewall replacement remain
+blocking work.
 `collect-current-ui.sh` gathers only controller/view/manager and service scripts
 into `/tmp`; it excludes `/etc/config`, `/etc/sing-box` and the executable core.
 

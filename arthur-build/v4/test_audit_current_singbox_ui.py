@@ -42,6 +42,17 @@ class AuditSourceOnlyExport(unittest.TestCase):
             self.assertNotIn("123.45.67.89", rendered)
             self.assertEqual(len(report["archive_sha256"]), 64)
 
+    def test_old_cn_updater_does_not_supply_firewall_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "mismatch.tar.gz"
+            make_archive(path, [
+                ("usr/bin/sing-box-firewall", 'CN_JSON="/etc/sing-box/rules/geoip-cn.json"'),
+                ("usr/bin/sing-box-update-rules", "fetch geoip-cn.srs"),
+            ])
+            result = auditor.audit(path)
+            self.assertFalse(result["checks"]["cn_firewall_list_updated"])
+            self.assertIn("cn_firewall_list_updated", result["blockers"])
+
     def test_rejects_traversal_and_unexpected_member(self):
         for member in ("../private", "usr/lib/lua/../../private", "etc/config/singbox"):
             with self.subTest(member=member), tempfile.TemporaryDirectory() as directory:
