@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse, hashlib, json, struct, sys, tarfile
 from pathlib import Path
+from fit_integrity import verify_fit
 
 LIMIT = 6 * 1024 * 1024
 FIT_MAGIC = b'\xd0\x0d\xfe\xed'
@@ -24,8 +25,12 @@ def inspect_image(path: Path) -> dict:
         roots = [x for x in names if x.startswith('sysupgrade-') and x.endswith('/root')]
         if len(kernels) != 1 or len(roots) != 1:
             raise ValueError('Expected exactly one sysupgrade kernel and one root filesystem')
-        kernel = src.extractfile(kernels[0]).read()
+        kernel_member = src.getmember(kernels[0])
         root = src.getmember(roots[0])
+        if kernel_member.size > 6 * 1024 * 1024 or root.size > 256 * 1024 * 1024:
+            raise ValueError('Sysupgrade member exceeds offline inspection bounds')
+        kernel = src.extractfile(kernel_member).read()
+        root_magic = src.extractfile(root).read(4)
     if len(kernel) < 40 or kernel[:4] != FIT_MAGIC:
         raise ValueError('Not a valid FIT header')
     internal = struct.unpack_from('>I', kernel, 4)[0]
@@ -34,14 +39,19 @@ def inspect_image(path: Path) -> dict:
     for marker in REQUIRED_MARKERS:
         if marker not in kernel:
             raise ValueError(f'FIT missing required marker: {marker.decode()}')
+    algorithms = verify_fit(kernel)
+    if root_magic != b'hsqs':
+        raise ValueError('Root filesystem is not squashfs')
     return {
         'kernel_bytes': len(kernel),
         'kernel_sha256': hashlib.sha256(kernel).hexdigest(),
         'fits_hlos_6mib': len(kernel) <= LIMIT,
         'kernel_headroom_bytes': LIMIT - len(kernel),
         'rootfs_bytes': root.size,
+        'rootfs_is_squashfs': True,
+        'fit_subimage_hash_algorithms': algorithms,
         'file': path.name,
-        'note': 'Markers and size only; FIT cryptographic subimage verification is separate',
+        'note': 'FIT subimage digests verified; no signature, boot or recovery verification',
     }
 
 def evaluate(layout: dict, image: dict, network_report: dict | None = None) -> dict:

@@ -2,7 +2,7 @@
 
 This is an **offline preflight**, **not a flash utility**. It does not connect to or write to the router.
 
-It checks the kernel FIT and rootfs layout in a GitHub Actions artifact ZIP and evaluates the observed boot/storage baseline.
+It checks the kernel FIT and rootfs layout in a GitHub Actions artifact ZIP and evaluates the observed boot/storage baseline. The FIT's configured kernel and device tree subimage hashes must match; this is an integrity check against the digests carried inside the FIT, not publisher authentication or a signature check.
 
 **A matching FIT smaller than 6 MiB does NOT mean the firmware is safe to flash.** Our production router has p16 HLOS, p17 HLOS_1 (unverified bootability), p18 rootfs, *no rootfs_1*, no validated fallback GPT and no demonstrated full-firmware rollback. The program deliberately emits \`NO_GO_FOR_PRODUCTION_ROUTER\` until a separate, proven migration-and-recovery implementation exists. It has no "force" or "approve" switch.
 

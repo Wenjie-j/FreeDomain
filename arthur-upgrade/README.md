@@ -12,7 +12,7 @@
 - V3 真实 FIT 大小 5,674,292 bytes（剩余 617,164 bytes），rootfs 镜像 14,880,768 bytes；FIT 容量已验收，1GiB 正式启动、NSS/Wi-Fi/用户全部代理能力和恢复尚未实机验收。
 
 ## 当前脚本的用途和限制
-upgrade_gate.py 只读取一份离线固件 sysupgrade tar 和固定的硬件清单，检查 FIT 体积、镜像板型字符串、分区容量与升级安全条件；输出 JSON 并对当前原机返回退出码 2（BLOCKED）。
+upgrade_gate.py 只读取一份离线固件 sysupgrade tar 和固定的硬件清单，检查 FIT 体积、镜像板型字符串、内核与设备树子镜像的 FIT 内部哈希、SquashFS 文件头、分区容量与升级安全条件；输出 JSON 并对当前原机返回退出码 2（BLOCKED）。已保存的 V3 真实镜像通过其 CRC32/SHA1 子镜像哈希检查，但这不是发布者签名校验，也不能证明实际能启动。
 它不连接用户路由器，不读写真实 GPT/HLOS/rootfs/U-Boot 环境；即使人为修改所有 inventory flags 为 true，脚本仍禁止自行批准刷机，直到另行实现并审核签名发布和受支持的恢复机制。
 
 用法：python3 arthur-upgrade/upgrade_gate.py --inventory arthur-upgrade/inventory-arthur-1gb-v3.json --sysupgrade /path/to/sysupgrade.bin --network-report /path/to/sanitized-network-report.json --output report.json

@@ -14,6 +14,9 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "arthur-upgrade"))
+from fit_integrity import verify_fit
+
 NEEDS = (
     "hlos_1_boot_verified",
     "rootfs_1_present",
@@ -63,6 +66,12 @@ def inspect(artifact, baseline):
         raise ValueError("FIT declared length disagrees with actual length")
     c["fit_bytes"] = size
     c["fit_sha256"] = hashlib.sha256(kernel).hexdigest()
+    try:
+        c["fit_subimage_hash_algorithms"] = verify_fit(kernel)
+        c["fit_subimage_hashes_valid"] = True
+    except ValueError:
+        c["fit_subimage_hash_algorithms"] = []
+        c["fit_subimage_hashes_valid"] = False
     c["hlos_capacity_bytes"] = int(baseline["hlos_partition_bytes"])
     c["hlos_headroom_bytes"] = c["hlos_capacity_bytes"] - size
     c["kernel_fits_hlos"] = 0 < size <= c["hlos_capacity_bytes"]

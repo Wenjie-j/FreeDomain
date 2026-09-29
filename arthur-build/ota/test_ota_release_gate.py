@@ -34,6 +34,7 @@ class TestFailClosed(unittest.TestCase):
             zip_fixture(f, sample_fit())
             r = inspect(f, BASE)
             self.assertTrue(r["static_checks"]["kernel_fits_hlos"])
+            self.assertFalse(r["static_checks"]["fit_subimage_hashes_valid"])
             self.assertEqual(r["decision"], "NO_GO_FOR_PRODUCTION_ROUTER")
             self.assertIn("UNVERIFIED_ROOTFS_1_PRESENT", r["hard_blockers"])
     def test_wrong_board_blocked(self):
