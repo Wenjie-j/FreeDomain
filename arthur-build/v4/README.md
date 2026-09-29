@@ -67,6 +67,12 @@ scripts, and labels the output `OFFLINE-ONLY.json`. Neither script stages a
 package in the image or relaxes the V4 and OTA gates. Example, using a private
 local copy of the archive:
 
+The offline porter also moves the node-manager UCI update after a successful
+service restart. If restart fails, it checks both the old config copy and the
+old service restart before claiming recovery, otherwise it reports the exact
+remaining failure. This was checked against the user's source-only export and
+49 local tests; no live service or Lua integration test has been run.
+
 ```sh
 python3 arthur-build/v4/audit_current_singbox_ui.py \
   /private/path/current-ui.tar.gz \

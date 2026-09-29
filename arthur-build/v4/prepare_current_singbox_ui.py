@@ -102,6 +102,41 @@ def port_setup(source):
     return source.replace(old_start, new_start, 1)
 
 
+def port_manager(source):
+    """Keep UCI state behind the service check and report rollback failures."""
+    old = '''    sys.call("uci set singbox.main.proxy_node="..shquote(db.active))
+    sys.call("uci commit singbox")
+    if restart then
+        local ok,re=restart_services()
+        if not ok then
+            sys.call("cp -f "..shquote(CFG..".manager-backup").." "..shquote(CFG))
+            restart_services()
+            return nil,re.."；已自动恢复上一个配置"
+        end
+    end
+    return true'''
+    new = '''    if restart then
+        local ok,re=restart_services()
+        if not ok then
+            local restored=sys.call("cp -f "..shquote(CFG..".manager-backup").." "..shquote(CFG))
+            if restored~=0 then
+                return nil,re.."；旧配置恢复失败，需人工检查"
+            end
+            local running,restore_error=restart_services()
+            if not running then
+                return nil,re.."；旧配置已恢复，但服务恢复失败："..tostring(restore_error)
+            end
+            return nil,re.."；旧配置和服务已恢复"
+        end
+    end
+    sys.call("uci set singbox.main.proxy_node="..shquote(db.active))
+    sys.call("uci commit singbox")
+    return true'''
+    if source.count(old) != 1:
+        raise ValueError("manager restart/rollback contract changed")
+    return source.replace(old, new, 1)
+
+
 def stage(archive_path, destination, services_archive=None):
     report = audit(archive_path, services_archive)
     destination = Path(destination)
@@ -125,6 +160,8 @@ def stage(archive_path, destination, services_archive=None):
     staged[controller_name] = harden_controller(staged[controller_name].decode()).encode()
     status_name = STAGED[2]
     staged[status_name] = port_status(staged[status_name].decode()).encode()
+    manager_name = STAGED[3]
+    staged[manager_name] = port_manager(staged[manager_name].decode()).encode()
     if services_archive is not None:
         setup_name = "etc/init.d/sing-box-setup"
         staged[setup_name] = port_setup(staged[setup_name].decode()).encode()
@@ -149,6 +186,7 @@ def stage(archive_path, destination, services_archive=None):
             "candidate_controller_method_hardened": True,
             "candidate_status_ported": True,
             "candidate_setup_ported": services_archive is not None,
+            "candidate_manager_rollback_hardened": True,
             "warning": "Private offline source candidate; never install as firmware overlay.",
         }, indent=2) + "\n"
     )
@@ -170,6 +208,7 @@ def main():
         "candidate_controller_method_hardened": True,
         "candidate_status_ported": True,
         "candidate_setup_ported": args.services_archive is not None,
+        "candidate_manager_rollback_hardened": True,
         "offline_only": True,
     }, indent=2))
 

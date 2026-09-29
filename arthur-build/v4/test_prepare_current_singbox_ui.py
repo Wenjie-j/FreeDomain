@@ -32,6 +32,27 @@ class ControllerPort(unittest.TestCase):
 
 
 class RuntimePort(unittest.TestCase):
+    def test_manager_restores_service_before_claiming_recovery(self):
+        old = '''    sys.call("uci set singbox.main.proxy_node="..shquote(db.active))
+    sys.call("uci commit singbox")
+    if restart then
+        local ok,re=restart_services()
+        if not ok then
+            sys.call("cp -f "..shquote(CFG..".manager-backup").." "..shquote(CFG))
+            restart_services()
+            return nil,re.."；已自动恢复上一个配置"
+        end
+    end
+    return true'''
+        new = porter.port_manager(old)
+        self.assertLess(new.index("local ok,re=restart_services()"),
+                        new.index("uci set singbox.main.proxy_node"))
+        self.assertIn("旧配置恢复失败，需人工检查", new)
+        self.assertIn("旧配置已恢复，但服务恢复失败", new)
+        self.assertIn("旧配置和服务已恢复", new)
+        with self.assertRaises(ValueError):
+            porter.port_manager(new)
+
     def test_status_rejects_old_contract_and_checks_the_runtime_sources(self):
         old = '''    return sys.call("iptables -t nat -S SINGBOX_TCP >/dev/null 2>&1")==0 and "已启用" or "未启用"
     local x=sys.exec("uci -q get dhcp.@dnsmasq[0].server 2>/dev/null")
