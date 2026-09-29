@@ -62,23 +62,61 @@ class RuntimePort(unittest.TestCase):
         self.assertNotIn("uci -q get dhcp", new)
         self.assertIn("nft list chain inet fw4 arthur_singbox_udp", new)
         self.assertIn("/tmp/dnsmasq.d/99-arthur-singbox.conf", new)
+        self.assertIn(".99-arthur-singbox.owner", new)
+        self.assertIn("owner==digest", new)
         self.assertIn("/var/etc/dnsmasq.conf.*", new)
         self.assertIn("待查询验证", new)
         with self.assertRaises(ValueError):
             porter.port_status(new)
 
-    def test_setup_refuses_to_proceed_without_generated_dns_include(self):
-        old = '''#!/bin/sh
-dns_on() { :; }
+    @staticmethod
+    def legacy_setup():
+        return '''#!/bin/sh
+RUNTIME_DIR="/tmp/dnsmasq.d"
+RUNTIME_CONF="$RUNTIME_DIR/99-arthur-singbox.conf"
+dns_on() {
+    mkdir -p "$RUNTIME_DIR" || return 1
+    tmp="$RUNTIME_CONF.tmp.$$"
+
+    cat >"$tmp" <<'EOF'
+# Arthur Sing-box runtime DNS
+no-resolv
+server=127.0.0.1#1053
+EOF
+
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$RUNTIME_CONF" || return 1
+
+    /etc/init.d/dnsmasq restart || return 1
+    wait_dnsmasq || return 1
+    return 0
+}
+
+dns_off() {
+    rm -f "$RUNTIME_CONF"
+    /etc/init.d/dnsmasq restart || return 1
+    wait_dnsmasq || return 1
+    return 0
+}
 start() {
     wait_core || {
         return 1
     }
 
     /usr/bin/sing-box-firewall start || { :; }
+    dns_on || {
+        rm -f "$RUNTIME_CONF"
+        /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+    }
 }
-stop() { /usr/bin/sing-box-firewall stop; }
+stop() {
+    dns_off
+    /usr/bin/sing-box-firewall stop
+    logger -t sing-box-setup "transparent proxy and runtime DNS disabled"
+}
 '''
+    def test_setup_refuses_to_proceed_without_generated_dns_include(self):
+        old = self.legacy_setup()
         new = porter.port_setup(old)
         self.assertNotIn("/usr/bin/sing-box-firewall start", new)
         self.assertLess(new.index("dns_include_ready ||"),
@@ -87,7 +125,7 @@ stop() { /usr/bin/sing-box-firewall stop; }
                                         capture_output=True).returncode, 0)
         with tempfile.TemporaryDirectory() as directory:
             conf = Path(directory) / "dnsmasq.conf.test"
-            gate = new[new.index("dns_include_ready() {"):new.index("dns_on() {")]
+            gate = new[new.index("dns_include_ready() {"):new.index("dns_owned() {")]
             gate = gate.replace("/var/etc/dnsmasq.conf.*", str(conf))
             def ready():
                 return subprocess.run(["sh", "-c", gate + "\ndns_include_ready"],
@@ -101,6 +139,45 @@ stop() { /usr/bin/sing-box-firewall stop; }
             self.assertTrue(ready())
         with self.assertRaises(ValueError):
             porter.port_setup(new)
+
+    def test_setup_dns_ownership_guards_foreign_and_modified_files(self):
+        new = porter.port_setup(self.legacy_setup())
+        with tempfile.TemporaryDirectory() as directory:
+            functions = new[:new.index("start() {")]
+            functions = functions.replace('RUNTIME_DIR="/tmp/dnsmasq.d"',
+                                          'RUNTIME_DIR="' + directory + '"')
+            functions = functions.replace('/etc/init.d/dnsmasq restart', 'true')
+            functions += '\nwait_dnsmasq() { return 0; }\n'
+
+            def call(function):
+                return subprocess.run(["sh", "-c", functions + "\n" + function],
+                                      capture_output=True, text=True).returncode
+
+            conf = Path(directory) / "99-arthur-singbox.conf"
+            owner = Path(directory) / ".99-arthur-singbox.owner"
+            conf.write_text("foreign DNS\n")
+            self.assertNotEqual(call("dns_on"), 0)
+            self.assertNotEqual(call("dns_off"), 0)
+            self.assertEqual(conf.read_text(), "foreign DNS\n")
+            conf.unlink()
+
+            self.assertEqual(call("dns_on"), 0)
+            self.assertTrue(owner.is_file())
+            self.assertEqual(call("dns_on"), 0)  # idempotent
+            conf.write_text("tampered DNS\n")
+            self.assertNotEqual(call("dns_off"), 0)
+            self.assertTrue(conf.is_file())
+            self.assertTrue(owner.is_file())
+            conf.write_text("# Arthur Sing-box runtime DNS\nno-resolv\nserver=127.0.0.1#1053\n")
+            self.assertEqual(call("dns_off"), 0)
+            self.assertFalse(conf.exists())
+            self.assertFalse(owner.exists())
+            foreign = Path(directory) / "foreign.conf"
+            foreign.write_text("keep me\n")
+            conf.symlink_to(foreign)
+            self.assertNotEqual(call("dns_on"), 0)
+            self.assertNotEqual(call("dns_off"), 0)
+            self.assertEqual(foreign.read_text(), "keep me\n")
 
 
 if __name__ == "__main__":

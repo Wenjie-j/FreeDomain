@@ -71,7 +71,14 @@ The offline porter also moves the node-manager UCI update after a successful
 service restart. If restart fails, it checks both the old config copy and the
 old service restart before claiming recovery, otherwise it reports the exact
 remaining failure. This was checked against the user's source-only export and
-49 local tests; no live service or Lua integration test has been run.
+local tests; no live service or Lua integration test has been run.
+The staged DNS setup now creates a hash ownership marker alongside its own
+runtime dnsmasq file. It refuses to overwrite an existing unowned file and
+refuses to delete an unowned, symlinked or modified file on stop. The status
+page checks the same marker before reporting the DNS include as present.
+Shell tests exercise a foreign file, a modified file, a symlink and a normal
+start/stop cycle. These are offline checks, not an endorsement of the future
+firewall4 or dnsmasq runtime behavior.
 
 ```sh
 python3 arthur-build/v4/audit_current_singbox_ui.py \

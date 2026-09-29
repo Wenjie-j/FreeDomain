@@ -57,9 +57,12 @@ def port_status(source):
     return x:find("127.0.0.1#1053",1,true) and "已启用 → 127.0.0.1:1053" or "未启用"'''
     new_dns = '''    local runtime=fs.readfile("/tmp/dnsmasq.d/99-arthur-singbox.conf") or ""
     local has_server=runtime:find("server=127.0.0.1#1053",1,true)~=nil
+    local owner=(fs.readfile("/tmp/dnsmasq.d/.99-arthur-singbox.owner") or ""):match("^([0-9a-f]+)%s*$")
+    local digest=(sys.exec("sha256sum /tmp/dnsmasq.d/99-arthur-singbox.conf 2>/dev/null") or ""):match("^([0-9a-f]+)")
+    local owned=owner~=nil and owner==digest
     local confdir=sys.call("grep -Fxq 'conf-dir=/tmp/dnsmasq.d' /var/etc/dnsmasq.conf.* >/dev/null 2>&1")==0
     local conffile=sys.call("grep -Fxq 'conf-file=/tmp/dnsmasq.d/99-arthur-singbox.conf' /var/etc/dnsmasq.conf.* >/dev/null 2>&1")==0
-    return has_server and (confdir or conffile) and "配置文件已包含（待查询验证）" or "未生效"'''
+    return owned and has_server and (confdir or conffile) and "配置文件已包含（待查询验证）" or "未生效"'''
     if source.count(old_firewall) != 1 or source.count(old_dns) != 1:
         raise ValueError("Sing-box status backend contract changed")
     return source.replace(old_firewall, new_firewall, 1).replace(old_dns, new_dns, 1)
@@ -99,7 +102,111 @@ def port_setup(source):
     /usr/bin/sing-box-firewall4 start || {'''
     if source.count(old_start) != 1:
         raise ValueError("Sing-box setup firewall start contract changed")
-    return source.replace(old_start, new_start, 1)
+    source = source.replace(old_start, new_start, 1)
+    old_dns = '''dns_on() {
+    mkdir -p "$RUNTIME_DIR" || return 1
+    tmp="$RUNTIME_CONF.tmp.$$"
+
+    cat >"$tmp" <<'EOF'
+# Arthur Sing-box runtime DNS
+no-resolv
+server=127.0.0.1#1053
+EOF
+
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$RUNTIME_CONF" || return 1
+
+    /etc/init.d/dnsmasq restart || return 1
+    wait_dnsmasq || return 1
+    return 0
+}
+
+dns_off() {
+    rm -f "$RUNTIME_CONF"
+    /etc/init.d/dnsmasq restart || return 1
+    wait_dnsmasq || return 1
+    return 0
+}'''
+    new_dns = '''dns_owned() {
+    [ -f "$RUNTIME_CONF" ] && [ ! -L "$RUNTIME_CONF" ] || return 1
+    [ -f "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ] || return 1
+    digest=$(sha256sum "$RUNTIME_CONF" 2>/dev/null) || return 1
+    digest=${digest%% *}
+    IFS= read -r recorded < "$RUNTIME_OWNER" || return 1
+    [ "$digest" = "$recorded" ]
+}
+
+dns_on() {
+    mkdir -p "$RUNTIME_DIR" || return 1
+    if [ -e "$RUNTIME_CONF" ] || [ -L "$RUNTIME_CONF" ] ||
+       [ -e "$RUNTIME_OWNER" ] || [ -L "$RUNTIME_OWNER" ]; then
+        dns_owned || return 1
+    else
+        tmp="$RUNTIME_CONF.tmp.$$"
+        owner_tmp="$RUNTIME_OWNER.tmp.$$"
+        cat >"$tmp" <<'EOF'
+# Arthur Sing-box runtime DNS
+no-resolv
+server=127.0.0.1#1053
+EOF
+        chmod 0644 "$tmp" || { rm -f "$tmp"; return 1; }
+        mv -f "$tmp" "$RUNTIME_CONF" || { rm -f "$tmp"; return 1; }
+        digest=$(sha256sum "$RUNTIME_CONF" 2>/dev/null) || {
+            rm -f "$RUNTIME_CONF"; return 1;
+        }
+        printf '%s\\n' "${digest%% *}" > "$owner_tmp" || {
+            rm -f "$RUNTIME_CONF" "$owner_tmp"; return 1;
+        }
+        chmod 0600 "$owner_tmp" || {
+            rm -f "$RUNTIME_CONF" "$owner_tmp"; return 1;
+        }
+        mv -f "$owner_tmp" "$RUNTIME_OWNER" || {
+            rm -f "$RUNTIME_CONF" "$owner_tmp"; return 1;
+        }
+    fi
+    /etc/init.d/dnsmasq restart || return 1
+    wait_dnsmasq || return 1
+}
+
+dns_off() {
+    if [ ! -e "$RUNTIME_CONF" ] && [ ! -L "$RUNTIME_CONF" ] &&
+       [ ! -e "$RUNTIME_OWNER" ] && [ ! -L "$RUNTIME_OWNER" ]; then
+        return 0
+    fi
+    dns_owned || return 1
+    rm -f "$RUNTIME_CONF" "$RUNTIME_OWNER" || return 1
+    /etc/init.d/dnsmasq restart || return 1
+    wait_dnsmasq || return 1
+}'''
+    old_failure = '''    dns_on || {
+        rm -f "$RUNTIME_CONF"
+        /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true'''
+    new_failure = '''    dns_on || {
+        dns_off >/dev/null 2>&1 || true'''
+    old_stop = '''stop() {
+    dns_off
+    /usr/bin/sing-box-firewall4 stop
+    logger -t sing-box-setup "transparent proxy and runtime DNS disabled"
+}'''
+    new_stop = '''stop() {
+    dns_off
+    dns_rc=$?
+    /usr/bin/sing-box-firewall4 stop
+    fw_rc=$?
+    if [ "$dns_rc" -ne 0 ] || [ "$fw_rc" -ne 0 ]; then
+        logger -t sing-box-setup "stop incomplete; inspect DNS ownership and firewall state"
+        return 1
+    fi
+    logger -t sing-box-setup "transparent proxy and runtime DNS disabled"
+}'''
+    owner_line = 'RUNTIME_CONF="$RUNTIME_DIR/99-arthur-singbox.conf"\n'
+    if (source.count(owner_line) != 1 or source.count(old_dns) != 1
+            or source.count(old_failure) != 1 or source.count(old_stop) != 1):
+        raise ValueError("runtime DNS ownership contract changed")
+    return (source.replace(owner_line, owner_line + 'RUNTIME_OWNER="$RUNTIME_DIR/.99-arthur-singbox.owner"\n', 1)
+            .replace(old_dns, new_dns, 1)
+            .replace(old_failure, new_failure, 1)
+            .replace(old_stop, new_stop, 1))
 
 
 def port_manager(source):
@@ -186,6 +293,7 @@ def stage(archive_path, destination, services_archive=None):
             "candidate_controller_method_hardened": True,
             "candidate_status_ported": True,
             "candidate_setup_ported": services_archive is not None,
+            "candidate_setup_dns_owner_hardened": services_archive is not None,
             "candidate_manager_rollback_hardened": True,
             "warning": "Private offline source candidate; never install as firmware overlay.",
         }, indent=2) + "\n"
@@ -208,6 +316,7 @@ def main():
         "candidate_controller_method_hardened": True,
         "candidate_status_ported": True,
         "candidate_setup_ported": args.services_archive is not None,
+        "candidate_setup_dns_owner_hardened": args.services_archive is not None,
         "candidate_manager_rollback_hardened": True,
         "offline_only": True,
     }, indent=2))
