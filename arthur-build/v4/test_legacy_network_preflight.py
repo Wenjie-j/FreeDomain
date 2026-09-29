@@ -1,6 +1,10 @@
 import importlib.util
+import hashlib
+import io
 import json
 import pathlib
+import tarfile
+import tempfile
 import unittest
 
 path = pathlib.Path(__file__).with_name("legacy_network_preflight.py")
@@ -52,6 +56,33 @@ network.custom_secret.device='br-private'
                                        "network.wan=interface\nnetwork.wan.ifname='eth3'\n")
         self.assertNotIn("UNKNOWN_INTERFACE_BINDING", report["blockers"])
         self.assertNotIn("loopback", report["interfaces"])
+
+    def test_private_collector_archive_is_verified_before_parsing(self):
+        secret = b"network.lan=interface\nnetwork.lan.ipaddr='192.168.100.1'\n"
+        checksum = hashlib.sha256(secret).hexdigest().encode()
+        with tempfile.TemporaryDirectory() as directory:
+            archive_path = pathlib.Path(directory) / "network.tar.gz"
+            with tarfile.open(archive_path, "w:gz") as archive:
+                for name, content in (
+                    ("./uci-network.txt", secret),
+                    ("./SHA256SUMS.txt", checksum + b"  ./uci-network.txt\n"),
+                ):
+                    info = tarfile.TarInfo(name)
+                    info.size = len(content)
+                    archive.addfile(info, io.BytesIO(content))
+            self.assertEqual(module.read_evidence_archive(archive_path),
+                             secret.decode())
+
+            with tarfile.open(archive_path, "w:gz") as archive:
+                for name, content in (
+                    ("uci-network.txt", secret),
+                    ("SHA256SUMS.txt", b"0" * 64 + b"  uci-network.txt\n"),
+                ):
+                    info = tarfile.TarInfo(name)
+                    info.size = len(content)
+                    archive.addfile(info, io.BytesIO(content))
+            with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+                module.read_evidence_archive(archive_path)
 
 
 if __name__ == "__main__":
