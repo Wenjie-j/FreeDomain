@@ -1,0 +1,66 @@
+name: Arthur 1GiB FIT memory audit (read only)
+
+on:
+  push:
+    branches:
+      - arthur-v4-core-report
+    paths:
+      - '.github/workflows/arthur-v4-memory-audit.yml'
+      - 'arthur-upgrade/**'
+      - 'arthur-build/ota/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download saved V3 build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: arthur-nss11-4-1gb-v3-offline-audit
+          run-id: 36417540760
+          github-token: ${{ github.token }}
+          repository: Wenjie-j/FreeDomain
+          path: input
+      - name: Run read-only FIT and OTA tests
+        run: |
+          python3 -m unittest discover -s arthur-upgrade -p 'test_*.py'
+          python3 -m unittest discover -s arthur-build/ota -p 'test_*.py'
+      - name: Verify real V3 remains blocked for 1GiB boot uncertainty
+        run: |
+          mkdir -p output
+          IMAGE=input/openwrt-qualcommax-ipq60xx-jdcloud_re-ss-01-squashfs-sysupgrade.bin
+          test -s "$IMAGE"
+          set +e
+          python3 arthur-upgrade/upgrade_gate.py \
+            --inventory arthur-upgrade/inventory-arthur-1gb-v3.json \
+            --sysupgrade "$IMAGE" \
+            --output output/v3-memory-audit.json
+          status=$?
+          set -e
+          test "$status" -eq 2
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('output/v3-memory-audit.json').read_text())
+          image = report['offline_image']
+          assert image['kernel_sha256'] == '183aad87fe950e5f1f3b0d487fc69536ac0fb1fd8fe29d4f388efd0e55ef04dd'
+          assert image['fit_memory_profile'] == 'BOOTLOADER_DEPENDENT_NO_MEMORY_NODE'
+          assert 'UNVERIFIED_1G_FIT_MEMORY_MAP' in report['blockers']
+          assert not report['write_approved'] and report['result'] == 'BLOCKED'
+          print('PASS: original V3 image still blocks unproved 1GiB boot and web upgrade')
+          PY
+      - name: Save non-flash audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arthur-v4-memory-readonly-audit
+          path: output/v3-memory-audit.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -12,6 +12,9 @@ saved September 28 evidence, the original p16 FIT declares 512 MiB, the
 running 4.4 FDT declares 1 GiB, and the V3 FIT has no explicit memory node.
 Therefore the V3 artifact reports `BOOTLOADER_DEPENDENT_NO_MEMORY_NODE` and
 `UNVERIFIED_1G_FIT_MEMORY_MAP`; it must not be used for a production upgrade.
+The short `arthur-v4-memory-audit.yml` workflow downloads the preserved V3
+build artifact and verifies this blocker and the known FIT digest in CI. It
+publishes only a JSON report and never runs a firmware build or flash action.
 
 **A matching FIT smaller than 6 MiB does NOT mean the firmware is safe to flash.** Our production router has p16 HLOS, p17 HLOS_1 (unverified bootability), p18 rootfs, *no rootfs_1*, no validated fallback GPT and no demonstrated full-firmware rollback. The program deliberately emits \`NO_GO_FOR_PRODUCTION_ROUTER\` until a separate, proven migration-and-recovery implementation exists. It has no "force" or "approve" switch.
 
