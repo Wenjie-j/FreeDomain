@@ -11,9 +11,12 @@ service interfaces while preserving the existing user flow. Add new interactive
 pages only for dual WAN, Mesh, NSS status and independent Sing-box updates.
 
 `verify_components.py` expects Argon, `luci-compat`, custom Sing-box source,
-`kmod-tun`, the proxy core, OpenClash, mwan3/LuCI and the NSS/Wi-Fi stack. A
+`kmod-tun`, `kmod-nft-tproxy`, the proxy core, OpenClash, mwan3/LuCI and the NSS/Wi-Fi stack. A
 package name in `.config` is insufficient: the built manifest and root tree
-must contain it. A Sing-box file in the root tree is also insufficient:
+must contain it. The root tree must also contain a ported setup service,
+firewall4 backend and status page; simple static checks block the known legacy
+iptables service. These checks are only an inventory, not functional proof.
+A Sing-box file in the root tree is also insufficient:
 `--core-build-report` must identify the V4 base and pinned 1.14.1 source,
 target architecture, required build tags and the staged binary SHA-256.
 This is a declared offline build trace, not proof of hardware runtime or
@@ -25,7 +28,12 @@ data. Do not commit the archive, generated configurations, URLs or credentials.
 The September 29 source-only export has now been received and audited. Its
 SHA-256 is `e8baf87d0aaa761bc01879c28eacc2d185d7713d2c43d21c53206ba7ca88c8e0`.
 It contains the later node-test controller, manager and page, but not the
-`sing-box-setup` service that those files call. The old firewall implementation
+`sing-box-setup` service that those files call. A separate September 29 service
+export, SHA-256 `1c5f726d47b32b4722aba55ffa9cdeaec9dddf7af92c5d0e188dd7690e435893`,
+supplies that script. It waits for the proxy and DNS ports, invokes the old
+firewall and writes a runtime dnsmasq include. This confirms the old service
+contract; it does not validate the new dnsmasq inclusion or firewall backend.
+The old firewall implementation
 uses iptables/ipset and has a fixed private upstream endpoint. It cannot be
 used as a firewall4/NSS/mwan3 backend. The status page also checks an iptables
 chain. The service and firewall replacement remain blocking work.
@@ -43,14 +51,18 @@ package in the image or relaxes the V4 and OTA gates. Example, using a private
 local copy of the archive:
 
 ```sh
-python3 arthur-build/v4/audit_current_singbox_ui.py /private/path/current-ui.tar.gz
+python3 arthur-build/v4/audit_current_singbox_ui.py \
+  /private/path/current-ui.tar.gz \
+  --services-archive /private/path/current-services.tar.gz
 python3 arthur-build/v4/prepare_current_singbox_ui.py \
-  /private/path/current-ui.tar.gz --output /private/path/v4-ui-candidate
+  /private/path/current-ui.tar.gz \
+  --services-archive /private/path/current-services.tar.gz \
+  --output /private/path/v4-ui-candidate
 ```
 
 The active page's JavaScript already uses POST for mutations and GET for the
 list, so the method restriction preserves its existing interaction. Before
-packaging, replace the missing setup service, port firewall and status checks
+packaging, port the recovered setup service, firewall and status checks
 to firewall4/nftables, test LuCI Lua compatibility, and verify service restart,
 node import/test, DNS and proxy behavior on a test image and device.
 

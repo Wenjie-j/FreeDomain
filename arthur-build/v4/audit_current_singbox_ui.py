@@ -33,7 +33,7 @@ MUTATIONS = (
 )
 
 
-def audit(path):
+def read_source_archive(path):
     path = Path(path)
     if path.stat().st_size > MAX_ARCHIVE:
         raise ValueError("archive exceeds source-only size limit")
@@ -61,12 +61,26 @@ def audit(path):
                 raise ValueError("archive member exceeds source-only size limit")
             contents[name] = archive.extractfile(member).read().decode("utf-8", "replace")
 
+    return digest, contents
+
+
+def audit(path, services_archive=None):
+    digest, contents = read_source_archive(path)
+    service_digest = None
+    if services_archive is not None:
+        service_digest, extras = read_source_archive(services_archive)
+        if set(contents) & set(extras):
+            raise ValueError("duplicate source file across archives")
+        if set(extras) != {"etc/init.d/sing-box-setup"}:
+            raise ValueError("service archive must contain only sing-box-setup")
+        contents.update(extras)
     missing = [name for name in SOURCE if name not in contents]
     controller = contents.get(SOURCE[0], "")
     view = contents.get(SOURCE[1], "")
     manager = contents.get(SOURCE[3], "")
     status = contents.get(SOURCE[2], "")
     firewall = contents.get("usr/bin/sing-box-firewall", "")
+    setup = contents.get("etc/init.d/sing-box-setup", "")
 
     routes = re.findall(r'entry\(\{\s*"admin","services","singbox","api","([a-z_]+)"\}', controller)
     api_mismatch = sorted(set(MUTATIONS) - set(routes))
@@ -76,6 +90,9 @@ def audit(path):
         "node_import_and_test_backend": all(x in manager for x in (
             "function M.test(", "function M.add_subscription(", "function M.set_active(")),
         "service_setup_source_present": "etc/init.d/sing-box-setup" in contents,
+        "setup_uses_core_ports": all(":" + port + " " in setup for port in ("7892", "7895", "1053")),
+        "setup_calls_current_firewall": "/usr/bin/sing-box-firewall start" in setup,
+        "setup_uses_runtime_dns_file": "/tmp/dnsmasq.d" in setup,
         "controller_enforces_post_method": bool(re.search(r'REQUEST_METHOD|\bpost\s*\(', controller)),
         "no_legacy_firewall_commands": not any(x in firewall for x in (
             "iptables", "ip6tables", "ipset", "TPROXY")),
@@ -87,6 +104,7 @@ def audit(path):
         blockers.append("missing_mutation_routes")
     return {
         "archive_sha256": digest,
+        "services_archive_sha256": service_digest,
         "source_file_count": len(contents),
         "present_expected_paths": [name for name in SOURCE if name in contents],
         "missing_expected_paths": missing,
@@ -101,9 +119,10 @@ def audit(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
+    parser.add_argument("--services-archive", type=Path, help="separate source-only setup service export")
     parser.add_argument("--output", type=Path, help="write a non-secret JSON report")
     args = parser.parse_args()
-    result = audit(args.archive)
+    result = audit(args.archive, args.services_archive)
     rendered = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(rendered)

@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 REQUIRED_PACKAGES = {
     "base": ("luci", "luci-i18n-base-zh-cn", "luci-compat", "firewall4"),
     "familiar_ui": ("luci-theme-argon",),
-    "proxy": ("sing-box", "kmod-tun", "luci-app-openclash"),
+    "proxy": ("sing-box", "kmod-tun", "kmod-nft-tproxy", "luci-app-openclash"),
     "multi_wan": ("mwan3", "luci-app-mwan3"),
     "radio": ("kmod-ath11k", "wpad-mesh-openssl"),
     "nss": ("kmod-qca-nss-dp", "kmod-qca-nss-drv", "kmod-qca-nss-ecm",
@@ -22,11 +23,50 @@ REQUIRED_ROOT_FILES = (
     "usr/lib/lua/luci/view/singbox/nodes.htm",
     "usr/lib/lua/singbox/manager.lua",
     "etc/init.d/sing-box",
+    "etc/init.d/sing-box-setup",
+    "usr/lib/lua/luci/model/cbi/singbox_status.lua",
+    "usr/bin/sing-box-firewall4",
     "usr/bin/sing-box",
 )
 CORE_TAGS = {"with_quic", "with_dhcp", "with_wireguard", "with_utls", "with_clash_api"}
 V4_BASE = "92a2d104145c8d265851c4b388a41bd8e9c21cd9"
 CORE_SOURCE = "1ac1a339cb1223e9c70eae14c44411c75033c02d"
+MUTATION_ACTIONS = ("active", "test", "delete", "move", "add_link", "add_raw",
+                    "add_manual", "update", "sub_add", "sub_update", "sub_rename",
+                    "sub_delete")
+
+
+def backend_port_checks(root_dir: Path | None) -> dict:
+    names = {
+        "post_only_mutation_routes": "usr/lib/lua/luci/controller/singbox.lua",
+        "setup_uses_ported_firewall": "etc/init.d/sing-box-setup",
+        "status_avoids_legacy_iptables": "usr/lib/lua/luci/model/cbi/singbox_status.lua",
+        "firewall4_replaces_legacy_commands": "usr/bin/sing-box-firewall4",
+    }
+    if root_dir is None:
+        return {key: "NOT_INSPECTED" for key in names}
+    content = {}
+    for key, name in names.items():
+        path = root_dir / name
+        content[key] = path.read_text(errors="replace") if path.is_file() else ""
+    controller = content["post_only_mutation_routes"]
+    setup = content["setup_uses_ported_firewall"]
+    status = content["status_avoids_legacy_iptables"]
+    firewall = content["firewall4_replaces_legacy_commands"]
+    return {
+        "post_only_mutation_routes": all(
+            bool(re.search(r'\bpost\("api_' + action + r'"\)', controller))
+            and 'call("api_' + action + '")' not in controller
+            for action in MUTATION_ACTIONS
+        ),
+        "setup_uses_ported_firewall": "/usr/bin/sing-box-firewall4 start" in setup
+        and "/usr/bin/sing-box-firewall start" not in setup,
+        "status_avoids_legacy_iptables": bool(status) and "iptables" not in status,
+        "firewall4_replaces_legacy_commands": bool(firewall)
+        and "nft" in firewall
+        and not any(x in firewall for x in ("iptables", "ip6tables", "ipset"))
+        and not re.search(r'(?m)^\s*(?:HY2_IP|SERVER_IP)\s*=\s*["\x27]\d', firewall),
+    }
 
 
 def inspect(artifact: Path, root_dir: Path | None = None,
@@ -51,6 +91,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
         root_files = {p: "NOT_INSPECTED" for p in REQUIRED_ROOT_FILES}
     else:
         root_files = {p: (root_dir / p).is_file() for p in REQUIRED_ROOT_FILES}
+    backend_checks = backend_port_checks(root_dir)
     # A copied Linux 4.4 binary can have the same name and version as a V4 build.
     # This only checks declared build trace + byte identity, not hardware runtime.
     core_trace = "MISSING_V4_BUILD_TRACE"
@@ -73,6 +114,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
             core_trace = "INVALID_V4_BUILD_TRACE"
     complete = (not missing and all(flags.values())
                 and all(x is True for x in root_files.values())
+                and all(x is True for x in backend_checks.values())
                 and core_trace == "MATCHES_DECLARED_V4_BUILD_TRACE")
     return {
         "classification": "COMPONENT_INVENTORY_ONLY_NOT_FLASH_APPROVAL",
@@ -80,6 +122,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
         "missing_packages": missing,
         "build_flags": flags,
         "staged_root_files": root_files,
+        "backend_port_checks": backend_checks,
         "core_build_trace": core_trace,
         "component_gate": "COMPONENTS_PRESENT" if complete else "BLOCKED_INCOMPLETE_COMPONENTS",
         "release_note": "Boot, config migration, recovery and interactive UI still require separate validation.",

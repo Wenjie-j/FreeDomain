@@ -48,8 +48,8 @@ def harden_controller(source):
     return source.replace(old, new, 1)
 
 
-def stage(archive_path, destination):
-    report = audit(archive_path)
+def stage(archive_path, destination, services_archive=None):
+    report = audit(archive_path, services_archive)
     destination = Path(destination)
     if destination.exists() and any(destination.iterdir()):
         raise ValueError("output directory must be empty")
@@ -61,6 +61,11 @@ def stage(archive_path, destination):
         staged = {}
         for name in STAGED:
             staged[name] = archive.extractfile(names[name]).read()
+    if services_archive is not None:
+        with tarfile.open(services_archive, "r:gz") as archive:
+            staged["etc/init.d/sing-box-setup"] = archive.extractfile(
+                "etc/init.d/sing-box-setup"
+            ).read()
 
     controller_name = STAGED[0]
     staged[controller_name] = harden_controller(staged[controller_name].decode()).encode()
@@ -74,11 +79,11 @@ def stage(archive_path, destination):
     (destination / "OFFLINE-ONLY.json").write_text(
         json.dumps({
             "archive_sha256": report["archive_sha256"],
-            "staged_paths": list(STAGED),
+            "services_archive_sha256": report["services_archive_sha256"],
+            "staged_paths": list(staged),
             "excluded_runtime_paths": [
                 "usr/bin/sing-box-firewall",
                 "usr/bin/sing-box-update-rules",
-                "etc/init.d/sing-box-setup",
                 "etc/init.d/anyreality",
             ],
             "source_archive_blockers": report["blockers"],
@@ -86,18 +91,20 @@ def stage(archive_path, destination):
             "warning": "Private offline source candidate; never install as firmware overlay.",
         }, indent=2) + "\n"
     )
-    return report
+    return report, len(staged)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
+    parser.add_argument("--services-archive", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    result = stage(args.archive, args.output)
+    result, count = stage(args.archive, args.output, args.services_archive)
     print(json.dumps({
-        "staged_file_count": len(STAGED),
+        "staged_file_count": count,
         "archive_sha256": result["archive_sha256"],
+        "services_archive_sha256": result["services_archive_sha256"],
         "source_archive_blockers": result["blockers"],
         "candidate_controller_method_hardened": True,
         "offline_only": True,

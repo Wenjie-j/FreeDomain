@@ -13,6 +13,23 @@ spec.loader.exec_module(module)
 
 
 class CoreOriginTest(unittest.TestCase):
+    def test_legacy_firewall_and_setup_cannot_satisfy_backend_gate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            sources = {
+                "usr/lib/lua/luci/controller/singbox.lua": 'call("api_active")',
+                "etc/init.d/sing-box-setup": '/usr/bin/sing-box-firewall start',
+                "usr/lib/lua/luci/model/cbi/singbox_status.lua": 'iptables -t nat',
+                "usr/bin/sing-box-firewall4": 'HY2_IP="123.45.67.89"\niptables -A X',
+            }
+            for name, content in sources.items():
+                file = root / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text(content)
+            checks = module.backend_port_checks(root)
+            self.assertTrue(all(value is False for value in checks.values()))
+            self.assertNotIn("123.45.67.89", json.dumps(checks))
+
     def test_old_firmware_binary_cannot_pass_by_name_or_version(self):
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp) / "root"

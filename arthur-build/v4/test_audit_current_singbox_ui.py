@@ -57,6 +57,21 @@ class AuditSourceOnlyExport(unittest.TestCase):
             with self.assertRaises(ValueError):
                 auditor.audit(path)
 
+    def test_separate_service_export_resolves_setup_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.tar.gz"
+            service = Path(directory) / "service.tar.gz"
+            make_archive(source, [(auditor.SOURCE[0], "original controller")])
+            make_archive(service, [("etc/init.d/sing-box-setup", "#!/bin/sh\n")])
+            result = auditor.audit(source, service)
+            self.assertTrue(result["checks"]["service_setup_source_present"])
+            self.assertNotIn("etc/init.d/sing-box-setup", result["missing_expected_paths"])
+            self.assertIn("no_legacy_firewall_commands", result["checks"])
+            self.assertEqual(len(result["services_archive_sha256"]), 64)
+            make_archive(service, [("etc/init.d/anyreality", "#!/bin/sh\n")])
+            with self.assertRaises(ValueError):
+                auditor.audit(source, service)
+
 
 if __name__ == "__main__":
     unittest.main()
