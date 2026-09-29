@@ -41,9 +41,15 @@ def extract_cn4(raw):
     return sorted(networks, key=lambda net: (int(net.network_address), net.prefixlen))
 
 
-def render(raw, lan_iface):
+def render(raw, lan_iface, proxy_endpoint_ipv4):
     if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,15}", lan_iface):
         raise ValueError("unsafe LAN interface name")
+    try:
+        endpoint = ipaddress.IPv4Address(proxy_endpoint_ipv4)
+    except (ipaddress.AddressValueError, TypeError):
+        raise ValueError("explicit proxy endpoint IPv4 is required") from None
+    if not endpoint.is_global:
+        raise ValueError("proxy endpoint must be a public IPv4 address")
     cidrs = extract_cn4(raw)
     cn = ",\n        ".join(map(str, cidrs))
     bypass = ", ".join(BYPASS)
@@ -65,6 +71,7 @@ chain arthur_singbox_udp {{
     meta l4proto != udp return
     udp dport 53 return
     ip daddr {{ {bypass} }} return
+    ip daddr {endpoint} return
     ip daddr @arthur_cn4 return
     tproxy ip to :7895 meta mark set 0x66 accept
 }}
@@ -76,6 +83,7 @@ chain arthur_singbox_tcp_dns {{
     udp dport 53 redirect to :53
     tcp dport 53 redirect to :53
     ip daddr {{ {bypass} }} return
+    ip daddr {endpoint} return
     ip daddr @arthur_cn4 return
     meta l4proto tcp redirect to :7892
 }}
@@ -93,11 +101,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--geoip-cn", type=Path, required=True)
     parser.add_argument("--lan-iface", required=True)
+    parser.add_argument("--proxy-endpoint-ipv4", required=True,
+                        help="Private local input; never commit the generated draft")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         raise ValueError("refusing to overwrite an existing nftables include")
-    args.output.write_text(render(args.geoip_cn.read_text(), args.lan_iface))
+    args.output.write_text(render(args.geoip_cn.read_text(), args.lan_iface,
+                                  args.proxy_endpoint_ipv4))
     args.output.chmod(0o600)
     print("Offline firewall4 draft written; not installed or syntax checked by nft")
 

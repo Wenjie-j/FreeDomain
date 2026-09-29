@@ -31,12 +31,13 @@ class SameSourceCnRules(unittest.TestCase):
                 pathlib.Path(command[4]).write_text(json.dumps({"rules": [{"ip_cidr": cidrs}]}))
 
             with patch.object(module.subprocess, "run", side_effect=fake_decompile):
-                report = module.prepare(root / "sing-box", srs, "br-lan", output)
+                report = module.prepare(root / "sing-box", srs, "br-lan", "8.8.8.8", output)
                 self.assertEqual(report["source_srs_sha256"], hashlib.sha256(srs.read_bytes()).hexdigest())
                 self.assertEqual(report["cn_ipv4_cidr_count"], 5000)
                 self.assertIn("@arthur_cn4", output.read_text())
+                self.assertIn("ip daddr 8.8.8.8 return", output.read_text())
                 with self.assertRaises(ValueError):
-                    module.prepare(root / "sing-box", srs, "br-lan", output)
+                    module.prepare(root / "sing-box", srs, "br-lan", "8.8.8.8", output)
 
     def test_failed_conversion_writes_no_candidate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -46,7 +47,7 @@ class SameSourceCnRules(unittest.TestCase):
             output = root / "candidate.nft"
             with patch.object(module.subprocess, "run", side_effect=OSError("unavailable")):
                 with self.assertRaises(ValueError):
-                    module.prepare(root / "sing-box", srs, "br-lan", output)
+                    module.prepare(root / "sing-box", srs, "br-lan", "8.8.8.8", output)
             self.assertFalse(output.exists())
 
 

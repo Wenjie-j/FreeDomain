@@ -81,8 +81,10 @@ node import/test, DNS and proxy behavior on a test image and device.
 renders a partial nftables file for inclusion *inside* `table inet fw4`, using
 the old IPv4 bypass ranges, a validated CN CIDR set, TCP redirect, UDP TPROXY,
 LAN DNS redirect and the old LAN IPv6 forward block. It requires a separately
-provided LAN device and at least 5000 valid CN IPv4 networks. The output has
-no fixed private upstream endpoint. Do not put the draft in
+provided LAN device, the active proxy endpoint IPv4 and at least 5000 valid CN
+IPv4 networks. The endpoint is an explicit private local input, kept ahead of
+the CN set in both bypass paths; no endpoint is embedded in repository source.
+The generated draft is private and must track endpoint changes. Do not put it in
 `/etc/nftables.d/`: target `fw4 check`, policy routing mark/table allocation,
 mwan3 mark overlap, NSS acceleration, service reload and real traffic tests
 have not been done. This is not yet `/usr/bin/sing-box-firewall4` and cannot
@@ -100,7 +102,8 @@ V4 dnsmasq config is available yet, so this condition remains unverified.
 `prepare_cn_firewall_candidate.py` now accepts the exact `geoip-cn.srs` used
 by Sing-box and calls a runnable Sing-box 1.14.1 `rule-set decompile` into a
 temporary JSON. It validates the CIDRs and generates the nftables draft from
-that same source, reporting SHA-256 and count without writing a JSON beside
+that same source, requiring the proxy endpoint IPv4 and reporting SHA-256 and
+count without writing a JSON beside
 the source. It refuses to replace an earlier output. The V4 ARM binary cannot
 run on an unrelated build host, so this step needs a host-native 1.14.1 build
 or an isolated V4 test environment. No real `.srs` was supplied in the source

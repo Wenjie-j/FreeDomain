@@ -16,7 +16,8 @@ from pathlib import Path
 from render_firewall4_draft import extract_cn4, render
 
 
-def prepare(binary: Path, srs: Path, lan_iface: str, output: Path):
+def prepare(binary: Path, srs: Path, lan_iface: str,
+            proxy_endpoint_ipv4: str, output: Path):
     if output.exists():
         raise ValueError("refusing to replace existing candidate")
     raw_srs = srs.read_bytes()
@@ -35,7 +36,7 @@ def prepare(binary: Path, srs: Path, lan_iface: str, output: Path):
             raise ValueError("missing or oversized decompiled CN rule-set")
         raw_json = decoded.read_text()
         count = len(extract_cn4(raw_json))
-        draft = render(raw_json, lan_iface)
+        draft = render(raw_json, lan_iface, proxy_endpoint_ipv4)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     # Link a complete temporary file into place without replacing older output.
@@ -63,10 +64,13 @@ def main():
     parser.add_argument("--sing-box", type=Path, required=True)
     parser.add_argument("--geoip-cn-srs", type=Path, required=True)
     parser.add_argument("--lan-iface", required=True)
+    parser.add_argument("--proxy-endpoint-ipv4", required=True,
+                        help="Private local input; never commit the generated draft")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     print(json.dumps(prepare(args.sing_box, args.geoip_cn_srs,
-                             args.lan_iface, args.output), indent=2))
+                             args.lan_iface, args.proxy_endpoint_ipv4,
+                             args.output), indent=2))
 
 
 if __name__ == "__main__":
