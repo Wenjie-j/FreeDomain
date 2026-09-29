@@ -78,10 +78,13 @@ def stop(adapter):
     """Remove rules first; drop local TPROXY route only after a good reload."""
     steps, errors = [], []
     owned = removed = False
+    route_present = rule_present = False
     try:
         adapter.verify_ownership()
         owned = True
         steps.append("verify_ownership")
+        route_present, rule_present = adapter.inspect_owned_routing()
+        steps.append("inspect_owned_routing")
         removed = True
         adapter.remove_include()
         steps.append("remove_include")
@@ -101,10 +104,12 @@ def stop(adapter):
                 errors.append("INCLUDE_RESTORE_FAILED:" + type(restore_exc).__name__)
         return _result("stop", "MANUAL_RECOVERY_REQUIRED_KEEP_ROUTING", steps, errors)
     try:
-        adapter.delete_masked_rule()
-        steps.append("delete_masked_rule")
-        adapter.delete_local_route()
-        steps.append("delete_local_route")
+        if rule_present:
+            adapter.delete_masked_rule()
+            steps.append("delete_masked_rule")
+        if route_present:
+            adapter.delete_local_route()
+            steps.append("delete_local_route")
         adapter.release_ownership()
         steps.append("release_ownership")
     except Exception as exc:

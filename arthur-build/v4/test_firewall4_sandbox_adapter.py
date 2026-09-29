@@ -60,11 +60,17 @@ class FakeCommands:
         elif command[:4] == ("ip", "-4", "route", "add"):
             self.route = True
         elif command[:4] == ("ip", "-4", "route", "del"):
-            self.route = False
+            if not self.route:
+                rc = 2
+            else:
+                self.route = False
         elif command[:4] == ("ip", "-4", "rule", "add"):
             self.rule = True
         elif command[:4] == ("ip", "-4", "rule", "del"):
-            self.rule = False
+            if not self.rule:
+                rc = 2
+            else:
+                self.rule = False
         else:
             raise AssertionError("unexpected fake command: " + repr(command))
         return SimpleNamespace(returncode=rc, stdout=stdout)
@@ -148,6 +154,22 @@ chain arthur_singbox_tcp_dns { tcp dport 53 redirect to :53 }
         self.assertEqual(result["state"], "MODEL_RECONCILED")
         self.assertTrue(self.commands.route and self.commands.rule and self.commands.active)
         self.assertEqual(stop(self.adapter())["state"], "MODEL_INACTIVE")
+
+    def test_stop_after_reboot_before_reconcile_skips_absent_routing(self):
+        self.assertEqual(start(self.adapter())["state"], "MODEL_ACTIVE")
+        self.commands.route = self.commands.rule = False
+        stopped = stop(self.adapter())
+        self.assertEqual(stopped["state"], "MODEL_INACTIVE")
+        self.assertFalse(self.commands.active)
+        self.assertFalse((self.root / "etc/sing-box/arthur/firewall4-owner.json").exists())
+
+    def test_stop_with_foreign_routing_blocks_before_touching_include(self):
+        self.assertEqual(start(self.adapter())["state"], "MODEL_ACTIVE")
+        self.commands.foreign_route = "default via 192.0.2.1 dev eth0\n"
+        result = stop(self.adapter())
+        self.assertEqual(result["state"], "MANUAL_RECOVERY_REQUIRED_KEEP_ROUTING")
+        self.assertTrue(self.commands.active)
+        self.assertTrue((self.root / "etc/nftables.d/90-arthur-singbox.nft").exists())
 
     def test_reboot_reconciliation_blocks_foreign_table_166_route(self):
         self.assertEqual(start(self.adapter())["state"], "MODEL_ACTIVE")

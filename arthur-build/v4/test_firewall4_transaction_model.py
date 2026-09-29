@@ -89,10 +89,10 @@ class TransactionModelTest(unittest.TestCase):
         self.assertNotIn("delete_local_route", adapter.calls)
 
     def test_stop_only_drops_route_after_verified_firewall_reload(self):
-        adapter = Adapter()
+        adapter = Adapter(routing=(True, True))
         result = module.stop(adapter)
         self.assertEqual(result["state"], "MODEL_INACTIVE")
-        self.assertEqual(adapter.calls, ["verify_ownership", "remove_include",
+        self.assertEqual(adapter.calls, ["verify_ownership", "inspect_owned_routing", "remove_include",
                                          "fw4_reload", "verify_chains_absent",
                                          "delete_masked_rule", "delete_local_route",
                                          "release_ownership"])
@@ -104,6 +104,17 @@ class TransactionModelTest(unittest.TestCase):
         foreign = Adapter(fail="verify_ownership")
         self.assertEqual(module.stop(foreign)["state"], "BLOCKED_NOT_OWNED")
         self.assertEqual(foreign.calls, ["verify_ownership"])
+
+    def test_stop_skips_missing_owned_routing_after_reboot(self):
+        adapter = Adapter(routing=(False, False))
+        result = module.stop(adapter)
+        self.assertEqual(result["state"], "MODEL_INACTIVE")
+        self.assertNotIn("delete_masked_rule", adapter.calls)
+        self.assertNotIn("delete_local_route", adapter.calls)
+        self.assertIn("release_ownership", adapter.calls)
+        foreign = Adapter(fail="inspect_owned_routing")
+        self.assertEqual(module.stop(foreign)["state"], "MANUAL_RECOVERY_REQUIRED_KEEP_ROUTING")
+        self.assertNotIn("remove_include", foreign.calls)
 
     def test_reboot_reconciles_only_missing_resources_after_ownership_check(self):
         adapter = Adapter(routing=(True, False))

@@ -128,8 +128,10 @@ the private include, `fw4 check`, reload, verify
 chains; failures remove the include, reload to remove live proxy rules, then
 release only the routing resources acquired in that attempt. A failed rollback
 retains the local route so packets are not left with a live TPROXY rule and no
-delivery path. Stop requires proof of ownership before removing anything and
-removes the route only after firewall reload and chain absence checks. This
+delivery path. Stop requires proof of ownership and inspects the reserved
+rule/table before removing anything. It removes only present owned routing
+after firewall reload and chain absence checks, allowing a stop after reboot
+when volatile routing has not yet been restored. This
 module has no CLI or OpenWrt command adapter and cannot be installed as
 `/usr/bin/sing-box-firewall4`. The real adapter still needs durable ownership
 state, reboot reconciliation, coordination with concurrent firewall reloads,
