@@ -66,6 +66,30 @@ packaging, port the recovered setup service, firewall and status checks
 to firewall4/nftables, test LuCI Lua compatibility, and verify service restart,
 node import/test, DNS and proxy behavior on a test image and device.
 
+`render_firewall4_draft.py` is the first offline firewall4 rule candidate. It
+renders a partial nftables file for inclusion *inside* `table inet fw4`, using
+the old IPv4 bypass ranges, a validated CN CIDR set, TCP redirect, UDP TPROXY,
+LAN DNS redirect and the old LAN IPv6 forward block. It requires a separately
+provided LAN device and at least 5000 valid CN IPv4 networks. The output has
+no fixed private upstream endpoint. Do not put the draft in
+`/etc/nftables.d/`: target `fw4 check`, policy routing mark/table allocation,
+mwan3 mark overlap, NSS acceleration, service reload and real traffic tests
+have not been done. This is not yet `/usr/bin/sing-box-firewall4` and cannot
+satisfy the V4 component gate. OpenWrt's firewall4 includes
+`/etc/nftables.d/*.nft` within its generated table; the Linux kernel documents
+the separate TPROXY mark and local policy route required for delivery.
+
+`check_dnsmasq_include.py` looks only at a *copied generated* dnsmasq config,
+not the old UCI input. The old setup writes
+`/tmp/dnsmasq.d/99-arthur-singbox.conf`; if the generated config does not
+explicitly include that file or directory, DNS migration blocks. A matching
+line still requires an active-process and functional lookup test. No generated
+V4 dnsmasq config is available yet, so this condition remains unverified.
+
+Primary references:
+- https://github.com/openwrt/firewall4/blob/master/root/usr/share/firewall4/templates/ruleset.uc
+- https://docs.kernel.org/networking/tproxy.html
+
 `legacy_network_preflight.py` reads an offline `uci show` export and emits only
 interface categories, safe field names and migration blockers. It deliberately
 never maps old `eth*` to new `lan*`/`wan`, generates UCI, or changes the router.
