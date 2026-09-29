@@ -29,6 +29,17 @@ REQUIRED_ROOT_FILES = (
     "usr/bin/sing-box",
 )
 CORE_TAGS = {"with_quic", "with_dhcp", "with_wireguard", "with_utls", "with_clash_api"}
+CUSTOM_OWNED_FILES = (
+    "etc/init.d/sing-box", "etc/init.d/sing-box-setup",
+    "usr/lib/lua/luci/controller/singbox.lua",
+    "usr/lib/lua/luci/view/singbox/nodes.htm",
+    "usr/lib/lua/singbox/manager.lua",
+    "usr/lib/lua/luci/model/cbi/singbox_status.lua",
+    "usr/bin/sing-box-firewall4",
+)
+CORE_FORBIDDEN_FILES = (
+    "etc/config/sing-box", "etc/sing-box/config.json", *CUSTOM_OWNED_FILES,
+)
 V4_BASE = "92a2d104145c8d265851c4b388a41bd8e9c21cd9"
 CORE_SOURCE = "1ac1a339cb1223e9c70eae14c44411c75033c02d"
 MUTATION_ACTIONS = ("active", "test", "delete", "move", "add_link", "add_raw",
@@ -43,6 +54,8 @@ def backend_port_checks(root_dir: Path | None) -> dict:
         "status_avoids_legacy_iptables": "usr/lib/lua/luci/model/cbi/singbox_status.lua",
         "firewall4_replaces_legacy_commands": "usr/bin/sing-box-firewall4",
     }
+
+
     if root_dir is None:
         return {key: "NOT_INSPECTED" for key in names}
     content = {}
@@ -69,8 +82,33 @@ def backend_port_checks(root_dir: Path | None) -> dict:
     }
 
 
+def package_ownership_checks(owners: dict | None) -> dict:
+    """Read an explicit build-package file list, not a root-file guess."""
+    if owners is None:
+        return {"core_binary_owned_by_core": "NOT_INSPECTED",
+                "custom_files_not_owned_by_core": "NOT_INSPECTED",
+                "custom_files_have_separate_owner": "NOT_INSPECTED"}
+    if not isinstance(owners, dict) or any(
+        not isinstance(path, str) or not isinstance(packages, list)
+        or not packages or not all(isinstance(pkg, str) and pkg for pkg in packages)
+        for path, packages in owners.items()
+    ):
+        raise ValueError("invalid package file ownership report")
+    def owner_set(path):
+        return set(owners.get(path, []))
+    return {
+        "core_binary_owned_by_core": owner_set("usr/bin/sing-box") == {"sing-box"},
+        "custom_files_not_owned_by_core": all(
+            "sing-box" not in owner_set(path) for path in CORE_FORBIDDEN_FILES),
+        "custom_files_have_separate_owner": all(
+            len(owner_set(path)) == 1 and "sing-box" not in owner_set(path)
+            for path in CUSTOM_OWNED_FILES),
+    }
+
+
 def inspect(artifact: Path, root_dir: Path | None = None,
-            core_build_report: dict | None = None) -> dict:
+            core_build_report: dict | None = None,
+            package_file_owners: dict | None = None) -> dict:
     with zipfile.ZipFile(artifact) as z:
         manifests = [n for n in z.namelist() if n.endswith("jdcloud_re-ss-01.manifest")]
         if len(manifests) != 1 or "final.config" not in z.namelist():
@@ -92,6 +130,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
     else:
         root_files = {p: (root_dir / p).is_file() for p in REQUIRED_ROOT_FILES}
     backend_checks = backend_port_checks(root_dir)
+    ownership_checks = package_ownership_checks(package_file_owners)
     # A copied Linux 4.4 binary can have the same name and version as a V4 build.
     # This only checks declared build trace + byte identity, not hardware runtime.
     core_trace = "MISSING_V4_BUILD_TRACE"
@@ -115,6 +154,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
     complete = (not missing and all(flags.values())
                 and all(x is True for x in root_files.values())
                 and all(x is True for x in backend_checks.values())
+                and all(x is True for x in ownership_checks.values())
                 and core_trace == "MATCHES_DECLARED_V4_BUILD_TRACE")
     return {
         "classification": "COMPONENT_INVENTORY_ONLY_NOT_FLASH_APPROVAL",
@@ -123,6 +163,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
         "build_flags": flags,
         "staged_root_files": root_files,
         "backend_port_checks": backend_checks,
+        "package_file_ownership": ownership_checks,
         "core_build_trace": core_trace,
         "component_gate": "COMPONENTS_PRESENT" if complete else "BLOCKED_INCOMPLETE_COMPONENTS",
         "release_note": "Boot, config migration, recovery and interactive UI still require separate validation.",
@@ -135,12 +176,17 @@ def main(argv=None) -> int:
     ap.add_argument("--root-dir", type=Path)
     ap.add_argument("--core-build-report", type=Path,
                     help="Metadata from a new V4 toolchain build; never the old router binary")
+    ap.add_argument("--package-file-owners", type=Path,
+                    help="Build package file lists as JSON path-to-package arrays")
     ap.add_argument("--output", type=Path)
     args = ap.parse_args(argv)
     try:
         core_build_report = (json.loads(args.core_build_report.read_text(encoding="utf-8"))
                              if args.core_build_report else None)
-        report = inspect(args.artifact, args.root_dir, core_build_report)
+        package_file_owners = (json.loads(args.package_file_owners.read_text(encoding="utf-8"))
+                               if args.package_file_owners else None)
+        report = inspect(args.artifact, args.root_dir, core_build_report,
+                         package_file_owners)
     except (OSError, ValueError, UnicodeError, zipfile.BadZipFile) as exc:
         report = {"classification": "COMPONENT_INVENTORY_ONLY_NOT_FLASH_APPROVAL",
                   "component_gate": "BLOCKED_INVALID_ARTIFACT", "error": str(exc)}

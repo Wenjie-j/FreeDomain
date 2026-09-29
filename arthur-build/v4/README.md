@@ -19,6 +19,12 @@ iptables service. These checks are only an inventory, not functional proof.
 A Sing-box file in the root tree is also insufficient:
 `--core-build-report` must identify the V4 base and pinned 1.14.1 source,
 target architecture, required build tags and the staged binary SHA-256.
+`--package-file-owners` additionally requires file lists from built packages:
+the core package must own only the binary among these sensitive paths, while
+the custom UI, service and firewall backend must have separate package owners.
+Without a report the ownership checks remain `NOT_INSPECTED` and block. A
+declaration does not prove the package archive contents; derive this report
+from actual package files when V4 packages exist.
 This is a declared offline build trace, not proof of hardware runtime or
 cryptographic supply chain attestation. Neither this gate nor the inherited OTA gates prove runtime
 1GiB RAM, radio calibration, live NSS acceleration, migration, or recovery.

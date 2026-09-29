@@ -13,6 +13,22 @@ spec.loader.exec_module(module)
 
 
 class CoreOriginTest(unittest.TestCase):
+    def test_core_binary_and_custom_service_must_have_separate_package_owners(self):
+        owners = {"usr/bin/sing-box": ["sing-box"]}
+        owners.update({path: ["arthur-singbox-service"]
+                       for path in module.CUSTOM_OWNED_FILES})
+        self.assertTrue(all(module.package_ownership_checks(owners).values()))
+
+        owners["etc/init.d/sing-box"] = ["sing-box"]
+        checks = module.package_ownership_checks(owners)
+        self.assertFalse(checks["custom_files_not_owned_by_core"])
+        self.assertFalse(checks["custom_files_have_separate_owner"])
+        del owners["etc/init.d/sing-box"]
+        self.assertFalse(module.package_ownership_checks(owners)
+                         ["custom_files_have_separate_owner"])
+        with self.assertRaises(ValueError):
+            module.package_ownership_checks({"usr/bin/sing-box": "sing-box"})
+
     def test_legacy_firewall_and_setup_cannot_satisfy_backend_gate(self):
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
@@ -51,6 +67,8 @@ class CoreOriginTest(unittest.TestCase):
                 z.writestr("final.config", config)
             missing = module.inspect(archive, root)
             self.assertEqual(missing["core_build_trace"], "MISSING_V4_BUILD_TRACE")
+            self.assertEqual(missing["package_file_ownership"]["core_binary_owned_by_core"],
+                             "NOT_INSPECTED")
             self.assertEqual(missing["component_gate"], "BLOCKED_INCOMPLETE_COMPONENTS")
             claimed_old = {
                 "base_commit": "old-linux-4.4", "source_commit": module.CORE_SOURCE,
