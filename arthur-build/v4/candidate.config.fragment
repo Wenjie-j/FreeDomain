@@ -6,6 +6,9 @@ CONFIG_PACKAGE_luci-compat=y
 CONFIG_PACKAGE_luci-theme-argon=y
 CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
+# Compile the target backend package but keep it outside the image until the
+# target firewall4, mwan3, NSS and recovery tests pass.
+CONFIG_PACKAGE_arthur-singbox-firewall4-test=m
 CONFIG_PACKAGE_mwan3=y
 CONFIG_PACKAGE_luci-app-mwan3=y
 CONFIG_PACKAGE_wpad-mesh-openssl=y

@@ -122,6 +122,11 @@ check`, reload verification and compensating rollback. Repeated start performs
 boot reconciliation, and stop refuses foreign or modified state before
 removing anything. It remains outside the image/package and must pass target
 failure injection, mwan3, NSS and real traffic tests before installation.
+`package/arthur-singbox-firewall4-test` wraps the exact candidate as a standard
+OpenWrt package with explicit firewall4, `ip-full` and TPROXY dependencies. It
+has no init script, ships no generated endpoint/CN rule file and is configured
+as `m`, so the future package build does not place it in the firmware image.
+`validate_firewall4_test_package.py` checks those constraints before build.
 
 The old TPROXY mark was `0x66/0xff`: it changed only the low byte. The draft
 now uses nft's masked mark update to preserve the other bits, including a

@@ -15,6 +15,9 @@ on:
       - 'arthur-build/v4/report_core_package.py'
       - 'arthur-build/v4/verify_components.py'
       - 'arthur-build/v4/package/sing-box/Makefile'
+      - 'arthur-build/v4/package/arthur-singbox-firewall4-test/**'
+      - 'arthur-build/v4/sing-box-firewall4.candidate'
+      - 'arthur-build/v4/validate_firewall4_test_package.py'
   workflow_dispatch:
 
 permissions:
@@ -54,6 +57,11 @@ jobs:
             https://github.com/jerrykuku/luci-theme-argon.git package/arthur/luci-theme-argon
           git -C package/arthur/luci-theme-argon checkout 0546f975a66796a89ff988524290c4a2e2d01855
           test -f package/arthur/luci-theme-argon/Makefile
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/validate_firewall4_test_package.py" \
+            --package "$GITHUB_WORKSPACE/arthur-build/v4/package/arthur-singbox-firewall4-test" \
+            --candidate "$GITHUB_WORKSPACE/arthur-build/v4/sing-box-firewall4.candidate"
+          cp -a "$GITHUB_WORKSPACE/arthur-build/v4/package/arthur-singbox-firewall4-test" \
+            package/arthur/
 
       - name: Verify Sing-box source and stage the reviewed recipe
         run: |
@@ -94,17 +102,22 @@ jobs:
           )
           config = set(Path('.config').read_text().splitlines())
           missing = [key for key in flags if f'CONFIG_{key}=y' not in config]
+          module_flags = ('PACKAGE_arthur-singbox-firewall4-test',)
+          missing_modules = [key for key in module_flags
+                             if f'CONFIG_{key}=m' not in config]
           recursive = 'recursive dependency detected!' in Path('../v4-defconfig.log').read_text()
           report = {
               'classification': 'CONFIG_PREFLIGHT_ONLY_NO_FIRMWARE_IMAGE',
-              'requested_flags': len(flags), 'missing_after_defconfig': missing,
+              'requested_flags': len(flags) + len(module_flags),
+              'missing_after_defconfig': missing,
+              'missing_modules_after_defconfig': missing_modules,
               'recursive_kconfig_dependency': recursive,
-              'status': 'PASS_CONFIG_ONLY' if not missing and not recursive
+              'status': 'PASS_CONFIG_ONLY' if not missing and not missing_modules and not recursive
                         else 'BLOCKED_CONFIG_DEPENDENCIES',
           }
           Path('../v4-config-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
           print(json.dumps(report, indent=2))
-          if missing or recursive:
+          if missing or missing_modules or recursive:
               raise SystemExit(2)
           PY
 
@@ -137,6 +150,8 @@ jobs:
             --package-root "$package_root" \
             --apk bin/packages/aarch64_cortex-a53/packages/sing-box-1.14.1-r1.apk \
             --config .config --output-dir ..
+          make -j2 package/arthur/arthur-singbox-firewall4-test/compile V=s
+          test -n "$(find bin/packages -name 'arthur-singbox-firewall4-test-*.apk' -print -quit)"
 
       - name: Upload configuration report
         if: always()
@@ -149,6 +164,7 @@ jobs:
             v4-core-build-trace.json
             v4-core-file-owners.json
             openwrt/bin/packages/**/sing-box-1.14.1-r1.apk
+            openwrt/bin/packages/**/arthur-singbox-firewall4-test-*.apk
             openwrt/.config
             openwrt/feeds.conf
           include-hidden-files: true

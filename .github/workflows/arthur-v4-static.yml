@@ -24,6 +24,9 @@ jobs:
       - name: Syntax and synthetic migration checks
         run: |
           sh -n arthur-build/v4/collect-current-ui.sh
+          python3 arthur-build/v4/validate_firewall4_test_package.py \
+            --package arthur-build/v4/package/arthur-singbox-firewall4-test \
+            --candidate arthur-build/v4/sing-box-firewall4.candidate
           python3 -m unittest discover -s arthur-build/v4 -p 'test_*.py' -v
           python3 -m unittest discover -s arthur-upgrade -p 'test_*.py' -v
           python3 -m unittest discover -s arthur-build/ota -p 'test_*.py' -v
