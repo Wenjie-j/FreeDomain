@@ -65,7 +65,9 @@ jobs:
             arthur-build/v4/package/sing-box/Makefile
           cp "$RUNNER_TEMP/verified-sing-box.Makefile" \
             openwrt/feeds/packages/net/sing-box/Makefile
-          test -f openwrt/feeds/packages/net/sing-box/files/sing-box.init
+          grep -q '/usr/bin/sing-box' openwrt/feeds/packages/net/sing-box/Makefile
+          ! grep -q '/etc/init.d/sing-box' openwrt/feeds/packages/net/sing-box/Makefile
+          ! grep -q '/etc/config/sing-box' openwrt/feeds/packages/net/sing-box/Makefile
 
       - name: Resolve candidate packages with make defconfig
         working-directory: openwrt
@@ -122,6 +124,13 @@ jobs:
         working-directory: openwrt
         run: |
           make -j2 package/feeds/packages/sing-box/compile V=s
+          package_root="$(find build_dir/target-*/sing-box-full/sing-box-1.14.1 \
+            -type d -path '*/ipkg-*/sing-box' -print -quit)"
+          test -n "$package_root"
+          test -x "$package_root/usr/bin/sing-box"
+          test ! -e "$package_root/etc/init.d/sing-box"
+          test ! -e "$package_root/etc/config/sing-box"
+          test ! -e "$package_root/etc/sing-box/config.json"
           python3 - <<'PY'
           import hashlib
           import json
@@ -148,6 +157,7 @@ jobs:
           path: |
             v4-config-preflight.json
             v4-core-package-build.json
+            openwrt/bin/packages/**/sing-box-1.14.1-r1.apk
             openwrt/.config
             openwrt/feeds.conf
           include-hidden-files: true
