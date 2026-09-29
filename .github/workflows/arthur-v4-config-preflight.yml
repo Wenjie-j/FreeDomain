@@ -111,6 +111,13 @@ jobs:
           test -x staging_dir/host/bin/libdeflate-gzip
           make -j2 toolchain/install V=s
 
+      - name: Build target kernel dependencies before package compile
+        working-directory: openwrt
+        run: |
+          make -j2 target/linux/compile V=s
+          test -n "$(find build_dir/target-*/linux-qualcommax_ipq60xx \
+            -maxdepth 2 -name .config -print -quit)"
+
       - name: Compile Sing-box package for V4 (no image)
         working-directory: openwrt
         run: |

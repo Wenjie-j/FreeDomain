@@ -253,6 +253,12 @@ which alone did not make those cycles acceptable. The next preflight installs
 only selected V4 feed packages plus their recursive dependencies, and blocks
 on any remaining recursive Kconfig diagnostic. It still does not validate
 the legacy mwan3 firewall rules against firewall4, TPROXY or NSS runtime.
+The second package attempt (run `36538831447`) installed host tools and the
+cross toolchain, then stopped when the `gpio-button-hotplug` dependency
+required the as-yet ungenerated Linux 6.12 kernel `.config`. The workflow now
+builds `target/linux/compile` before the selected package, which should
+generate that configuration and kernel dependencies. This has not yet passed
+a cloud run; no V4 Sing-box package or firmware image has been produced.
 
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.
