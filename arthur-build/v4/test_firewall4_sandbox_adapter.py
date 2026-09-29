@@ -86,7 +86,7 @@ class SandboxTransactionTest(unittest.TestCase):
         private.mkdir()
         (private / "candidate.nft").write_text("""set arthur_cn4 { type ipv4_addr; }
 chain arthur_singbox_udp {
-    tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
+    meta l4proto udp tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
 }
 chain arthur_singbox_tcp_dns { tcp dport 53 redirect to :53 }
 """)

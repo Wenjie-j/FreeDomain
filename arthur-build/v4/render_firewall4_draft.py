@@ -75,7 +75,7 @@ chain arthur_singbox_udp {{
     ip daddr {endpoint} return
     ip daddr @arthur_cn4 return
     # Preserve marks outside our 0xff mask, including mwan3's usual high bits.
-    tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
+    meta l4proto udp tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
 }}
 
 chain arthur_singbox_tcp_dns {{

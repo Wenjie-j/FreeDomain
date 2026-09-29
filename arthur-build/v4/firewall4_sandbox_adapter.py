@@ -66,6 +66,7 @@ class SandboxAdapter:
         raw = self.candidate.read_bytes()
         if not 100 <= len(raw) <= 2 * 1024 * 1024 or not all(part in raw for part in (
             b"chain arthur_singbox_udp", b"chain arthur_singbox_tcp_dns",
+            b"meta l4proto udp tproxy ip to :7895",
             b"meta mark set mark and 0xffffff00 xor 0x66", b"set arthur_cn4",
         )):
             raise AdapterError("invalid offline candidate structure")
