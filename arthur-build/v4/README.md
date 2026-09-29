@@ -216,8 +216,8 @@ place it at `feeds/packages/net/sing-box/Makefile` inside an isolated V4 build
 tree after fetching the locked feeds. Its relative Go package include requires
 that location, and the adjacent feed `files/` directory must be retained.
 When prepared from a Git object, the archive hash still needs verification by
-the build tree's `make download`; the committed recipe itself has not been
-downloaded or compiled. The feed recipe also installs its own
+the build tree's `make download`; the cloud preflight below also checks the
+pinned source archive. The feed recipe also installs its own
 `/etc/init.d/sing-box`, `/etc/config/sing-box` and default JSON. Review their
 ownership and interaction with the user's existing custom setup service
 before enabling the package in a release image.
@@ -234,11 +234,14 @@ copied into V4.
 base and feeds, stages Argon as a package, downloads and verifies the pinned
 Sing-box source archive, compares the generated 1.14.1 recipe byte for byte
 with the committed overlay, and runs `make defconfig` on a V3-equivalent NSS
-seed plus the V4 fragments. It reports any package or feature selection lost
-by dependency resolution. This job deliberately stops before compilation and
-does not produce a firmware image; even a green preflight cannot authorize
-upgrading the router. The source-only custom UI and target firewall4 backend
-are not installed by this job.
+seed plus the V4 fragments. The first cloud run retained all 18 checked
+selections (run `36537038227`). The next stage compiles the Sing-box package
+with the V4 toolchain and records a package digest if successful. It does not
+produce a firmware image; even a green run cannot authorize upgrading the
+router. The source-only custom UI and target firewall4 backend are not
+installed by this job. Its config preflight uses the pinned NSS seed rather
+than the exact V3 `final.config`, so later image builds must recheck their
+effective config and manifest.
 
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.

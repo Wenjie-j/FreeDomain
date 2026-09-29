@@ -21,7 +21,7 @@ permissions:
 jobs:
   resolve:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
       - name: Install OpenWrt configuration dependencies
@@ -92,6 +92,28 @@ jobs:
               raise SystemExit(2)
           PY
 
+      - name: Compile Sing-box package for V4 (no image)
+        working-directory: openwrt
+        run: |
+          make -j2 package/feeds/packages/sing-box/compile V=s
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          packages = sorted(p for p in Path('bin/packages').rglob('*sing-box*1.14.1*')
+                            if p.is_file() and p.suffix in ('.apk', '.ipk'))
+          report = {
+              'classification': 'CORE_PACKAGE_ONLY_NOT_FIRMWARE_OR_RUNTIME_APPROVAL',
+              'packages': [{'name': p.name, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()}
+                           for p in packages],
+              'status': 'PACKAGE_BUILT' if packages else 'BLOCKED_NO_PACKAGE_OUTPUT',
+          }
+          Path('../v4-core-package-build.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          if not packages:
+              raise SystemExit(2)
+          PY
+
       - name: Upload configuration report
         if: always()
         uses: actions/upload-artifact@v4
@@ -99,7 +121,9 @@ jobs:
           name: arthur-v4-config-preflight-no-image
           path: |
             v4-config-preflight.json
+            v4-core-package-build.json
             openwrt/.config
             openwrt/feeds.conf
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
