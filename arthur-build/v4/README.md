@@ -112,6 +112,9 @@ have not been done. This is not yet `/usr/bin/sing-box-firewall4` and cannot
 satisfy the V4 component gate. OpenWrt's firewall4 includes
 `/etc/nftables.d/*.nft` within its generated table; the Linux kernel documents
 the separate TPROXY mark and local policy route required for delivery.
+`arthur-v4-nft-syntax.yml` checks this renderer with 5000 synthetic IPv4 CIDRs
+using `nft -c` on an Ubuntu CI host. This only parses a draft without applying
+rules; it cannot validate the V4 target's firewall4, kernel modules or traffic.
 
 The old TPROXY mark was `0x66/0xff`: it changed only the low byte. The draft
 now uses nft's masked mark update to preserve the other bits, including a

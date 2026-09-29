@@ -1,0 +1,39 @@
+name: Arthur V4 nft draft syntax (host only)
+
+on:
+  push:
+    branches:
+      - arthur-v4-core-report
+    paths:
+      - '.github/workflows/arthur-v4-nft-syntax.yml'
+      - 'arthur-build/v4/render_firewall4_draft.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nft-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nftables parser
+        run: sudo apt-get update && sudo apt-get install -y nftables
+      - name: Generate public synthetic rule set and parse without applying
+        run: |
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'arthur-build/v4')
+          from render_firewall4_draft import render
+          cidrs = [f'11.{n // 65536}.{n // 256 % 256}.{n % 256}/32'
+                   for n in range(5000)]
+          rules = json.dumps({'rules': [{'ip_cidr': cidrs}]})
+          draft = render(rules, 'br-lan', '8.8.8.8')
+          Path('/tmp/arthur-v4-synthetic.nft').write_text(
+              'table inet fw4 {\n' + draft + '\n}\n')
+          PY
+          sudo nft -c -f /tmp/arthur-v4-synthetic.nft
+          echo 'HOST_NFT_PARSE_ONLY_TARGET_FW4_AND_NSS_UNTESTED'
