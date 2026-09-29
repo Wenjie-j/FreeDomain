@@ -240,6 +240,18 @@ once in an offline check; `make defconfig` and a package build are still needed
 to test whether the selected packages resolve. No old Linux 4.4 binary is
 copied into V4.
 
+The isolated core-package build in run `36555424005` succeeded. It uploaded
+`sing-box-1.14.1-r1.apk` for `aarch64_cortex-a53` with SHA-256
+`d83724e7bdc4d1fb4ff7e49cf75f596b9e0faceff73f251f5b3b3456a2739a8e`.
+The build checked that the staged package root contains the executable and
+does not contain upstream init/config defaults; this is not a firmware image.
+`report_core_package.py` now requires the staged package file list to contain
+only `usr/bin/sing-box`, checks its ELF header and selected architecture/tags,
+and emits a binary hash build trace and a partial file-owners report alongside
+the APK on the next build. The partial report deliberately lacks custom service
+owners, so the complete image gate stays blocked. This new reporting step
+has only local tests until a new cloud build completes.
+
 `.github/workflows/arthur-v4-config-preflight.yml` now checks out the pinned
 base and feeds, stages Argon as a package, downloads and verifies the pinned
 Sing-box source archive, compares the generated 1.14.1 recipe byte for byte
