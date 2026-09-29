@@ -91,6 +91,16 @@ explicitly include that file or directory, DNS migration blocks. A matching
 line still requires an active-process and functional lookup test. No generated
 V4 dnsmasq config is available yet, so this condition remains unverified.
 
+`prepare_cn_firewall_candidate.py` now accepts the exact `geoip-cn.srs` used
+by Sing-box and calls a runnable Sing-box 1.14.1 `rule-set decompile` into a
+temporary JSON. It validates the CIDRs and generates the nftables draft from
+that same source, reporting SHA-256 and count without writing a JSON beside
+the source. It refuses to replace an earlier output. The V4 ARM binary cannot
+run on an unrelated build host, so this step needs a host-native 1.14.1 build
+or an isolated V4 test environment. No real `.srs` was supplied in the source
+only exports; synthetic failure and provenance tests pass, while actual
+binary decompilation and `fw4 check` remain pending.
+
 Primary references:
 - https://github.com/openwrt/firewall4/blob/master/root/usr/share/firewall4/templates/ruleset.uc
 - https://docs.kernel.org/networking/tproxy.html
