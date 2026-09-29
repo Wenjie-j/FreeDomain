@@ -34,6 +34,14 @@ class Firewall4DraftTest(unittest.TestCase):
         self.assertEqual(output.count("ip daddr 8.8.8.8 return"), 2)
         self.assertLess(output.index("ip daddr 8.8.8.8 return"),
                         output.index("ip daddr @arthur_cn4 return"))
+        udp = output[output.index("chain arthur_singbox_udp"):
+                     output.index("chain arthur_singbox_tcp_dns")]
+        tcp = output[output.index("chain arthur_singbox_tcp_dns"):
+                     output.index("chain arthur_singbox_forward6")]
+        self.assertLess(udp.index("ip daddr @arthur_cn4 return"),
+                        udp.index("tproxy ip to :7895"))
+        self.assertLess(tcp.index("ip daddr @arthur_cn4 return"),
+                        tcp.index("redirect to :7892"))
         self.assertIn('iifname "br-lan" meta nfproto ipv6 reject', output)
         self.assertNotIn("HY2_IP", output)
 

@@ -30,10 +30,17 @@ class TargetShellCandidateTest(unittest.TestCase):
         candidate = state / "firewall4-candidate.nft"
         candidate.write_text("""set arthur_cn4 { type ipv4_addr; }
 chain arthur_singbox_udp {
+ ip daddr { 10.0.0.0/8, 192.168.0.0/16 } return
+ ip daddr @arthur_cn4 return
  meta l4proto udp tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
 }
-chain arthur_singbox_tcp_dns { meta l4proto tcp redirect to :7892 }
+chain arthur_singbox_tcp_dns {
+ ip daddr { 10.0.0.0/8, 192.168.0.0/16 } return
+ ip daddr @arthur_cn4 return
+ meta l4proto tcp redirect to :7892
+}
 """)
+        self.candidate = candidate
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.runtime = self.root / "runtime"
@@ -125,6 +132,21 @@ esac
         self.assertTrue((self.runtime / "rule").is_file())
         self.assertTrue((self.runtime / "route").is_file())
         self.assertEqual(self.call("stop").returncode, 0)
+
+    def test_domestic_bypass_must_precede_proxy_action(self):
+        contents = self.candidate.read_text()
+        contents = contents.replace(
+            " ip daddr @arthur_cn4 return\n"
+            " meta l4proto udp tproxy ip to :7895",
+            " meta l4proto udp tproxy ip to :7895\n"
+            " ip daddr @arthur_cn4 return\n# moved action ",
+            1,
+        )
+        self.candidate.write_text(contents)
+        result = self.call("start")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.include.exists())
+        self.assertFalse((self.runtime / "rule").exists())
 
 
 if __name__ == "__main__":

@@ -41,6 +41,27 @@ owned() {
     [ "$current" = "$recorded" ]
 }
 
+candidate_order_valid() {
+    awk '
+        /^chain arthur_singbox_udp[[:space:]]*\{/ { chain = "udp"; next }
+        /^chain arthur_singbox_tcp_dns[[:space:]]*\{/ { chain = "tcp"; next }
+        /^}/ { chain = "" }
+        chain == "udp" && /ip daddr \{ .*10\.0\.0\.0\/8.*192\.168\.0\.0\/16.*\} return/ { udp_private = NR }
+        chain == "udp" && /ip daddr @arthur_cn4 return/ { udp_cn = NR }
+        chain == "udp" && /meta l4proto udp tproxy ip to :7895/ { udp_proxy = NR }
+        chain == "tcp" && /ip daddr \{ .*10\.0\.0\.0\/8.*192\.168\.0\.0\/16.*\} return/ { tcp_private = NR }
+        chain == "tcp" && /ip daddr @arthur_cn4 return/ { tcp_cn = NR }
+        chain == "tcp" && /meta l4proto tcp redirect to :7892/ { tcp_proxy = NR }
+        END {
+            valid = udp_private && udp_cn && udp_proxy &&
+                    tcp_private && tcp_cn && tcp_proxy &&
+                    udp_private < udp_cn && udp_cn < udp_proxy &&
+                    tcp_private < tcp_cn && tcp_cn < tcp_proxy
+            exit(valid ? 0 : 1)
+        }
+    ' "$CANDIDATE"
+}
+
 candidate_valid() {
     [ -f "$CANDIDATE" ] && [ ! -L "$CANDIDATE" ] || return 1
     size=$(wc -c < "$CANDIDATE" 2>/dev/null) || return 1
@@ -49,7 +70,8 @@ candidate_valid() {
     grep -Fq 'chain arthur_singbox_udp' "$CANDIDATE" &&
     grep -Fq 'chain arthur_singbox_tcp_dns' "$CANDIDATE" &&
     grep -Fq 'meta l4proto udp tproxy ip to :7895' "$CANDIDATE" &&
-    grep -Fq 'meta mark set mark and 0xffffff00 xor 0x66' "$CANDIDATE"
+    grep -Fq 'meta mark set mark and 0xffffff00 xor 0x66' "$CANDIDATE" &&
+    candidate_order_valid
 }
 
 route_state() {
