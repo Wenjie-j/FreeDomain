@@ -15,6 +15,7 @@ for file in \
   usr/lib/lua/luci/model/cbi/singbox_status.lua \
   usr/lib/lua/singbox/manager.lua \
   etc/init.d/sing-box \
+  etc/init.d/sing-box-setup \
   etc/init.d/anyreality \
   usr/bin/sing-box-update-rules \
   usr/bin/sing-box-node-manager \

@@ -22,10 +22,37 @@ cryptographic supply chain attestation. Neither this gate nor the inherited OTA 
 
 The September 27 plugin archive contains code but also private node/config
 data. Do not commit the archive, generated configurations, URLs or credentials.
-The September 28 v2.1 node-test repair postdates that source snapshot; obtain
-the latest source-only export before treating the UI port as complete.
+The September 29 source-only export has now been received and audited. Its
+SHA-256 is `e8baf87d0aaa761bc01879c28eacc2d185d7713d2c43d21c53206ba7ca88c8e0`.
+It contains the later node-test controller, manager and page, but not the
+`sing-box-setup` service that those files call. The old firewall implementation
+uses iptables/ipset and has a fixed private upstream endpoint. It cannot be
+used as a firewall4/NSS/mwan3 backend. The status page also checks an iptables
+chain. The service and firewall replacement remain blocking work.
 `collect-current-ui.sh` gathers only controller/view/manager and service scripts
 into `/tmp`; it excludes `/etc/config`, `/etc/sing-box` and the executable core.
+
+`audit_current_singbox_ui.py` inspects the private archive without extracting
+it, and emits a fixed vocabulary JSON report with no node or subscription
+contents. `prepare_current_singbox_ui.py` makes a private, offline working copy
+of five UI/backend source files. It changes each mutation route to LuCI's
+POST-only dispatcher action and checks the method again in `require_post()`;
+the read-only `list` route stays GET. It excludes the legacy firewall and rules
+scripts, and labels the output `OFFLINE-ONLY.json`. Neither script stages a
+package in the image or relaxes the V4 and OTA gates. Example, using a private
+local copy of the archive:
+
+```sh
+python3 arthur-build/v4/audit_current_singbox_ui.py /private/path/current-ui.tar.gz
+python3 arthur-build/v4/prepare_current_singbox_ui.py \
+  /private/path/current-ui.tar.gz --output /private/path/v4-ui-candidate
+```
+
+The active page's JavaScript already uses POST for mutations and GET for the
+list, so the method restriction preserves its existing interaction. Before
+packaging, replace the missing setup service, port firewall and status checks
+to firewall4/nftables, test LuCI Lua compatibility, and verify service restart,
+node import/test, DNS and proxy behavior on a test image and device.
 
 `legacy_network_preflight.py` reads an offline `uci show` export and emits only
 interface categories, safe field names and migration blockers. It deliberately
