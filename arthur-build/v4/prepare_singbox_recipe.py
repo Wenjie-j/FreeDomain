@@ -13,6 +13,32 @@ OLD_HASH = "PKG_HASH:=87baf6852e37941cbe40bdd94bec81c957c88a56751cecd6bbf0e6108b
 REQUIRED_FEATURES = ("SINGBOX_WITH_QUIC", "SINGBOX_WITH_DHCP",
                      "SINGBOX_WITH_WIREGUARD", "SINGBOX_WITH_UTLS",
                      "SINGBOX_WITH_CLASH_API")
+OLD_CONFFILES = """define Package/sing-box/conffiles
+/etc/config/sing-box
+/etc/sing-box/
+endef
+
+Package/sing-box-tiny/conffiles=$(Package/sing-box/conffiles)
+
+"""
+OLD_INSTALL = """define Package/sing-box/install
+\t$(INSTALL_DIR) $(1)/usr/bin/
+\t$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/sing-box $(1)/usr/bin/sing-box
+
+\t$(INSTALL_DIR) $(1)/etc/sing-box
+\t$(INSTALL_DATA) $(PKG_BUILD_DIR)/release/config/config.json $(1)/etc/sing-box
+
+\t$(INSTALL_DIR) $(1)/etc/config/
+\t$(INSTALL_CONF) ./files/sing-box.conf $(1)/etc/config/sing-box
+\t$(INSTALL_DIR) $(1)/etc/init.d/
+\t$(INSTALL_BIN) ./files/sing-box.init $(1)/etc/init.d/sing-box
+endef"""
+CORE_INSTALL = """# Arthur V4 packages the user's ported service/config separately.
+# The upstream defaults would overwrite the existing custom service contract.
+define Package/sing-box/install
+\t$(INSTALL_DIR) $(1)/usr/bin/
+\t$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/sing-box $(1)/usr/bin/sing-box
+endef"""
 
 
 def verify_archive(archive: Path, lock: dict) -> None:
@@ -66,8 +92,12 @@ def adapt_makefile(original: str, lock: dict) -> str:
         raise ValueError("feed recipe changed; review it before updating")
     if not all(feature in original for feature in REQUIRED_FEATURES):
         raise ValueError("feed recipe lacks required build feature switches")
+    if original.count(OLD_CONFFILES) != 1 or original.count(OLD_INSTALL) != 1:
+        raise ValueError("feed service/config install changed; review ownership before updating")
     return (original.replace(OLD_VERSION, "PKG_VERSION:=1.14.1")
-            .replace(OLD_HASH, "PKG_HASH:=" + source["codeload_sha256"]))
+            .replace(OLD_HASH, "PKG_HASH:=" + source["codeload_sha256"])
+            .replace(OLD_CONFFILES, "")
+            .replace(OLD_INSTALL, CORE_INSTALL))
 
 
 def main() -> None:

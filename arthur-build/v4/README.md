@@ -210,17 +210,21 @@ fragment alone does not prove a package built or that its UI works.
 The official v1.14.1 source archive is pinned by SHA-256 in `feeds.lock.json`.
 `prepare_singbox_recipe.py` verifies either that archive or the pinned Git
 commit and tag, including its `go.mod` (Go 1.25.5 minimum), and changes only
-the version/hash in the reviewed 1.14.0 OpenWrt package recipe. The resulting
+the version/hash and the reviewed install/conffiles blocks in the pinned 1.14.0
+OpenWrt package recipe. It refuses an unexpected change to those blocks. The resulting
 `package/sing-box/Makefile` is a prepared overlay for the pinned packages feed;
 place it at `feeds/packages/net/sing-box/Makefile` inside an isolated V4 build
 tree after fetching the locked feeds. Its relative Go package include requires
-that location, and the adjacent feed `files/` directory must be retained.
+that location.
 When prepared from a Git object, the archive hash still needs verification by
 the build tree's `make download`; the cloud preflight below also checks the
-pinned source archive. The feed recipe also installs its own
-`/etc/init.d/sing-box`, `/etc/config/sing-box` and default JSON. Review their
-ownership and interaction with the user's existing custom setup service
-before enabling the package in a release image.
+pinned source archive. The prepared package installs only `/usr/bin/sing-box`:
+the upstream defaults for `/etc/init.d/sing-box`, `/etc/config/sing-box` and
+`/etc/sing-box/config.json` would collide with the user's existing service
+contract. The custom init/setup service and configuration migration must be
+ported and packaged separately; the V4 component gate remains blocked without
+those files. This core-only package must not be used as a stand-alone upgrade
+on the running Linux 4.4 router.
 The current candidate packages feed defaults to Go 1.27; actual cross-build
 and runtime compatibility remain untested. `singbox-1.14.1.config.fragment`
 records the old core's five required feature tags, but is not applied by the

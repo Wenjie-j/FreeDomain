@@ -15,13 +15,24 @@ class SingBoxRecipeTest(unittest.TestCase):
     def setUp(self):
         self.lock = json.loads((base / "feeds.lock.json").read_text())
         self.old = "\n".join((module.OLD_VERSION, module.OLD_HASH,
-                              *(f"config {f}" for f in module.REQUIRED_FEATURES)))
+                              *(f"config {f}" for f in module.REQUIRED_FEATURES),
+                              module.OLD_CONFFILES, module.OLD_INSTALL,
+                              "Package/sing-box-tiny/install=$(Package/sing-box/install)"))
 
     def test_version_and_archive_hash_are_replaced_together(self):
         updated = module.adapt_makefile(self.old, self.lock)
         self.assertIn("PKG_VERSION:=1.14.1", updated)
         self.assertIn("PKG_HASH:=" + self.lock["sing_box_source"]["codeload_sha256"],
                       updated)
+        self.assertIn(module.CORE_INSTALL, updated)
+        self.assertNotIn("/etc/init.d/sing-box", updated)
+        self.assertNotIn("/etc/config/sing-box", updated)
+        self.assertNotIn("/etc/sing-box/", updated)
+        self.assertIn("Package/sing-box-tiny/install=$(Package/sing-box/install)", updated)
+
+    def test_changed_service_install_requires_review(self):
+        with self.assertRaisesRegex(ValueError, "service/config install changed"):
+            module.adapt_makefile(self.old.replace("sing-box.init", "custom.init"), self.lock)
 
     def test_changed_feed_and_unverified_tar_are_rejected(self):
         with self.assertRaises(ValueError):

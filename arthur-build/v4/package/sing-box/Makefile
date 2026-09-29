@@ -168,24 +168,11 @@ GO_PKG_TAGS:=$(subst $(space),$(comma),$(strip \
 ))
 endif
 
-define Package/sing-box/conffiles
-/etc/config/sing-box
-/etc/sing-box/
-endef
-
-Package/sing-box-tiny/conffiles=$(Package/sing-box/conffiles)
-
+# Arthur V4 packages the user's ported service/config separately.
+# The upstream defaults would overwrite the existing custom service contract.
 define Package/sing-box/install
 	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/sing-box $(1)/usr/bin/sing-box
-
-	$(INSTALL_DIR) $(1)/etc/sing-box
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/release/config/config.json $(1)/etc/sing-box
-
-	$(INSTALL_DIR) $(1)/etc/config/
-	$(INSTALL_CONF) ./files/sing-box.conf $(1)/etc/config/sing-box
-	$(INSTALL_DIR) $(1)/etc/init.d/
-	$(INSTALL_BIN) ./files/sing-box.init $(1)/etc/init.d/sing-box
 endef
 
 Package/sing-box-tiny/install=$(Package/sing-box/install)
