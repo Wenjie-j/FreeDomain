@@ -54,7 +54,8 @@ def render(raw, lan_iface, proxy_endpoint_ipv4):
     cn = ",\n        ".join(map(str, cidrs))
     bypass = ", ".join(BYPASS)
     return f'''# OFFLINE DRAFT: include inside table inet fw4 only after target checks.
-# No private upstream endpoint, node data or credentials are embedded here.
+# PRIVATE GENERATED DRAFT: the supplied proxy endpoint IP is embedded below.
+# Never commit or publish the generated nft file.
 set arthur_cn4 {{
     type ipv4_addr
     flags interval
@@ -73,7 +74,8 @@ chain arthur_singbox_udp {{
     ip daddr {{ {bypass} }} return
     ip daddr {endpoint} return
     ip daddr @arthur_cn4 return
-    tproxy ip to :7895 meta mark set 0x66 accept
+    # Preserve marks outside our 0xff mask, including mwan3's usual high bits.
+    tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
 }}
 
 chain arthur_singbox_tcp_dns {{

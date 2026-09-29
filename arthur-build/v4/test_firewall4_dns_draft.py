@@ -27,7 +27,8 @@ class Firewall4DraftTest(unittest.TestCase):
 
     def test_candidate_keeps_udp_tproxy_tcp_redirect_and_cn_bypass(self):
         output = firewall.render(self.geoip(), "br-lan", "8.8.8.8")
-        self.assertIn("tproxy ip to :7895 meta mark set 0x66", output)
+        self.assertIn("tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66", output)
+        self.assertNotIn("meta mark set 0x66", output)
         self.assertIn("meta l4proto tcp redirect to :7892", output)
         self.assertIn("ip daddr @arthur_cn4 return", output)
         self.assertEqual(output.count("ip daddr 8.8.8.8 return"), 2)

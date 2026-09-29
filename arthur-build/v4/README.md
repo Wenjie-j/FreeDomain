@@ -92,6 +92,16 @@ satisfy the V4 component gate. OpenWrt's firewall4 includes
 `/etc/nftables.d/*.nft` within its generated table; the Linux kernel documents
 the separate TPROXY mark and local policy route required for delivery.
 
+The old TPROXY mark was `0x66/0xff`: it changed only the low byte. The draft
+now uses nft's masked mark update to preserve the other bits, including a
+typical mwan3 high-bit mask. `check_firewall4_mark_space.py` is a read-only
+offline screen for copied `ip -4 rule show`, `ip -4 route show table 166`,
+`fw4 print` and the actual `mwan3.globals.mmx_mask`. It reports collision
+codes without echoing route or firewall contents and *always* denies live
+activation. Absence of a collision in copied text cannot prove live priority,
+reload behavior, NSS acceleration or routing correctness. No start/stop
+firewall4 service exists yet.
+
 `check_dnsmasq_include.py` looks only at a *copied generated* dnsmasq config,
 not the old UCI input. The old setup writes
 `/tmp/dnsmasq.d/99-arthur-singbox.conf`; if the generated config does not
