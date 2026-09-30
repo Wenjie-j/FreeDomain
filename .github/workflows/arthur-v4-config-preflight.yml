@@ -15,6 +15,7 @@ on:
       - 'arthur-build/v4/prepare_singbox_recipe.py'
       - 'arthur-build/v4/report_core_package.py'
       - 'arthur-build/v4/core_elf.py'
+      - 'arthur-build/v4/smoke_singbox_core.py'
       - 'arthur-build/v4/verify_components.py'
       - 'arthur-build/v4/package/sing-box/Makefile'
       - 'arthur-build/v4/package/arthur-singbox-firewall4-test/**'
@@ -43,7 +44,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib \
             gettext git libncurses-dev libssl-dev python3 python3-setuptools \
-            rsync swig unzip zlib1g-dev file wget curl ccache jq time
+            rsync swig unzip zlib1g-dev file wget curl ccache jq time qemu-user
 
       - name: Checkout pinned base and feeds
         run: |
@@ -233,6 +234,21 @@ jobs:
             --core-owners ../v4-core-file-owners.json \
             --output-dir ..
 
+      - name: Check V4-built Sing-box version and synthetic configurations under QEMU
+        working-directory: openwrt
+        run: |
+          core_root="$(find build_dir/target-*/sing-box-full/sing-box-1.14.1 \
+            -type d -path '*/.pkgdir/sing-box' -print -quit)"
+          # The pinned toolchain's musl loader stays under this build sysroot.
+          # No router configuration, listener or proxy run command is used.
+          sysroots=(staging_dir/toolchain-aarch64_cortex-a53_gcc-*_musl)
+          test "${#sysroots[@]}" -eq 1
+          test -f "${sysroots[0]}/lib/ld-musl-aarch64.so.1"
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/smoke_singbox_core.py" \
+            --binary "$core_root/usr/bin/sing-box" \
+            --trace ../v4-core-build-trace.json --sysroot "${sysroots[0]}" \
+            --output ../v4-singbox-qemu-smoke.json
+
       - name: Compile pinned OpenClash LuCI package (no image)
         working-directory: openwrt
         run: |
@@ -291,6 +307,7 @@ jobs:
             v4-config-preflight.json
             v4-core-package-build.json
             v4-core-build-trace.json
+            v4-singbox-qemu-smoke.json
             v4-core-file-owners.json
             v4-firewall4-package-build.json
             v4-package-file-owners.partial.json

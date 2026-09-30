@@ -414,6 +414,37 @@ Run `36699112998` now performs the corrected full package sequence, including
 the independently verified stable ARM64 core trial. No firmware image or
 router write is part of either check.
 
+Run `36699112998` has since completed successfully at `9cda024c`.
+The downloaded artifact ZIP was verified against GitHub's SHA-256
+`18b6d8c69412dceb77e9107d9dbac9196968df8a23c632bc6f39bf5d5a648335`.
+Its configuration report retained all 23 selections with no recursive Kconfig
+dependency or legacy xtables provider. Sing-box, the non-activating firewall4
+test package, OpenClash LuCI and the stable OpenClash core all passed their
+staged-package checks. The actual uploaded APK digests also match the reports:
+
+| APK | SHA-256 |
+| --- | --- |
+| Sing-box 1.14.1 | `a0cf632949e84915a54b9a594c0577066d0d9e0303b949f7ec917a14b80a79d8` |
+| Firewall4 test | `7155d4834b21d811deb6f7a2677430e0726b61b3ac4c7b82ed136e021763ce58` |
+| OpenClash LuCI 0.47.156 | `92f436d500f6a4a25070b7e0c8edefdfebf151baa09936849c44d5ce969bc0cf` |
+
+The OpenClash core APK was checked in CI but not uploaded. The overview package
+step was added after this run's commit, so this success does not cover it.
+No final V4 root filesystem, custom UI integration or hardware test was produced.
+
+The next package run also invokes `smoke_singbox_core.py` on the newly built
+ARM64 core under QEMU with that build's musl toolchain sysroot. Before execution
+it checks the core's digest and pinned trace. It then checks the exact version,
+actual compiled feature tags, a direct-only configuration with no inbounds and
+rejection of an invalid outbound. It uses only `version` and `check`, with
+timeouts; it never issues `run` or loads the user's configuration. The loader's
+digest is recorded and a loader resolving outside the supplied sysroot blocks.
+This is prepared for CI; passing local mocked tests does not establish actual
+emulated execution, real traffic or compatibility with the Arthur kernel.
+CLI references at the pinned source revision:
+- https://github.com/SagerNet/sing-box/blob/1ac1a339cb1223e9c70eae14c44411c75033c02d/cmd/sing-box/cmd_version.go
+- https://github.com/SagerNet/sing-box/blob/1ac1a339cb1223e9c70eae14c44411c75033c02d/cmd/sing-box/cmd_check.go
+
 The staging package now prepares the official stable Mihomo `v1.19.31` for
 OpenClash. `prepare_openclash_core.py` checks its gzip against the pinned
 release SHA-256, bounds compressed/decompressed sizes, rejects symlinked
