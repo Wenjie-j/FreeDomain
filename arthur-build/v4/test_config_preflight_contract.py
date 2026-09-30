@@ -86,7 +86,7 @@ class ConfigPreflightContractTests(unittest.TestCase):
                       "*/luci-app-arthur-overview/.pkgdir/luci-app-arthur-overview"):
             self.assertIn(token, self.source)
         base = WORKFLOW.parents[2] / "arthur-build/v4"
-        self.assertIn("CONFIG_PACKAGE_luci-app-arthur-overview=m",
+        self.assertIn("CONFIG_PACKAGE_luci-app-arthur-overview=y",
                       (base / "candidate.config.fragment").read_text().splitlines())
         recipe = (base / "luci-app-arthur-overview/Makefile").read_text()
         self.assertIn("include $(TOPDIR)/feeds/luci/luci.mk", recipe)
