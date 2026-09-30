@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 
 MAX_ARCHIVE = 64 * 1024 * 1024
 MAX_MEMBER = 16 * 1024 * 1024
+MAX_TOTAL = 128 * 1024 * 1024
 MAX_FILES = 512
 EXACT = {"CLASSIFICATION.txt", "SHA256SUMS.txt",
          "etc/config/singbox", "etc/config/openclash"}
@@ -28,6 +29,7 @@ def read_verified_archive(path: Path) -> dict[str, bytes]:
     if path.stat().st_size > MAX_ARCHIVE:
         raise ValueError("archive too large")
     files = {}
+    total = 0
     with tarfile.open(path, "r:*") as archive:
         members = archive.getmembers()
         if len(members) > MAX_FILES:
@@ -44,9 +46,16 @@ def read_verified_archive(path: Path) -> dict[str, bytes]:
                 raise ValueError("unexpected archive member")
             if member.size > MAX_MEMBER:
                 raise ValueError("archive member too large")
+            total += member.size
+            if total > MAX_TOTAL:
+                raise ValueError("archive expands beyond limit")
             files[name] = archive.extractfile(member).read(MAX_MEMBER + 1)
     if not EXACT.issubset(files):
         raise ValueError("required proxy migration member missing")
+    marker = files["CLASSIFICATION.txt"].decode("ascii", "strict").splitlines()
+    if not marker or marker[0] != (
+            "PRIVATE_LEGACY_PROXY_CONFIGURATION_NOT_PUBLIC_NOT_RESTORE_APPROVAL"):
+        raise ValueError("unexpected archive classification")
     sums = {}
     for line in files["SHA256SUMS.txt"].decode("ascii").splitlines():
         match = SUM.fullmatch(line)

@@ -29,7 +29,8 @@ class ProxyMigrationPreflightTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.path = pathlib.Path(self.temp.name) / "private.tar.gz"
         self.payloads = {
-            "CLASSIFICATION.txt": b"PRIVATE\n",
+            "CLASSIFICATION.txt": (
+                b"PRIVATE_LEGACY_PROXY_CONFIGURATION_NOT_PUBLIC_NOT_RESTORE_APPROVAL\n"),
             "etc/config/singbox": b"config singbox main\n",
             "etc/config/openclash": b"config openclash config\n",
             "etc/sing-box/config.json": b"{}\n",
@@ -63,6 +64,13 @@ class ProxyMigrationPreflightTest(unittest.TestCase):
                 info.size = len(data)
                 archive.addfile(info, io.BytesIO(data))
         with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+            module.inspect(self.path)
+
+    def test_rejects_unclassified_archive(self):
+        payloads = dict(self.payloads)
+        payloads["CLASSIFICATION.txt"] = b"UNKNOWN\n"
+        archive_at(self.path, payloads)
+        with self.assertRaisesRegex(ValueError, "classification"):
             module.inspect(self.path)
 
 
