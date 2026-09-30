@@ -13,10 +13,20 @@ spec.loader.exec_module(module)
 
 
 class CoreOriginTest(unittest.TestCase):
+    def test_openclash_core_trace_uses_locked_archive(self):
+        lock = json.loads(path.with_name("feeds.lock.json").read_text())
+        core = lock["openclash_core_source"]
+        self.assertEqual(core["repository"],
+                         "https://github.com/vernesong/OpenClash.git")
+        self.assertEqual(core["archive_path"], "master/meta/clash-linux-arm64.tar.gz")
+        self.assertEqual(core["revision"], module.OPENCLASH_CORE_SOURCE)
+        self.assertEqual(core["git_blob_sha"], module.OPENCLASH_CORE_BLOB)
+
     def test_core_binary_and_custom_service_must_have_separate_package_owners(self):
         owners = {"usr/bin/sing-box": ["sing-box"]}
         owners.update({path: ["arthur-singbox-service"]
                        for path in module.CUSTOM_OWNED_FILES})
+        owners["etc/openclash/core/clash_meta"] = ["arthur-openclash-core"]
         self.assertTrue(all(module.package_ownership_checks(owners).values()))
 
         owners["etc/init.d/sing-box"] = ["sing-box"]
@@ -28,6 +38,9 @@ class CoreOriginTest(unittest.TestCase):
                          ["custom_files_have_separate_owner"])
         with self.assertRaises(ValueError):
             module.package_ownership_checks({"usr/bin/sing-box": "sing-box"})
+        owners["etc/openclash/core/clash_meta"] = ["luci-app-openclash"]
+        self.assertFalse(module.package_ownership_checks(owners)
+                         ["openclash_core_owned_separately"])
 
     def test_legacy_firewall_and_setup_cannot_satisfy_backend_gate(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -67,6 +80,7 @@ class CoreOriginTest(unittest.TestCase):
                 z.writestr("final.config", config)
             missing = module.inspect(archive, root)
             self.assertEqual(missing["core_build_trace"], "MISSING_V4_BUILD_TRACE")
+            self.assertEqual(missing["openclash_core_trace"], "MISSING_OPENCLASH_CORE_TRACE")
             self.assertEqual(missing["package_file_ownership"]["core_binary_owned_by_core"],
                              "NOT_INSPECTED")
             self.assertEqual(missing["component_gate"], "BLOCKED_INCOMPLETE_COMPONENTS")
@@ -83,6 +97,46 @@ class CoreOriginTest(unittest.TestCase):
             claimed_old["binary_sha256"] = "0" * 64
             result = module.inspect(archive, root, claimed_old)
             self.assertEqual(result["core_build_trace"], "INVALID_V4_BUILD_TRACE")
+
+    def test_openclash_core_requires_pinned_trace_arm64_elf_and_separate_owner(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp) / "root"
+            binary = root / "etc/openclash/core/clash_meta"
+            binary.parent.mkdir(parents=True)
+            arm64_elf = bytearray(64)
+            arm64_elf[:6] = b"\x7fELF\x02\x01"
+            arm64_elf[18:20] = b"\xb7\x00"
+            binary.write_bytes(arm64_elf)
+            archive = pathlib.Path(temp) / "image.zip"
+            with zipfile.ZipFile(archive, "w") as z:
+                z.writestr("jdcloud_re-ss-01.manifest", "")
+                z.writestr("final.config", "")
+            trace = {
+                "source_repository": "https://github.com/vernesong/OpenClash.git",
+                "source_commit": module.OPENCLASH_CORE_SOURCE,
+                "source_blob_sha": module.OPENCLASH_CORE_BLOB,
+                "target_arch": "aarch64",
+                "binary_sha256": hashlib.sha256(arm64_elf).hexdigest(),
+            }
+            check = lambda report: module.inspect(
+                archive, root, openclash_core_build_report=report)
+            self.assertEqual(check(trace)["openclash_core_trace"],
+                             "MATCHES_DECLARED_OPENCLASH_CORE_TRACE")
+            self.assertEqual(check(trace)["component_gate"],
+                             "BLOCKED_INCOMPLETE_COMPONENTS")
+            for field, wrong in (("source_commit", "0" * 40),
+                                 ("source_blob_sha", "0" * 40),
+                                 ("target_arch", "x86_64"),
+                                 ("binary_sha256", "0" * 64)):
+                with self.subTest(field=field):
+                    self.assertEqual(check({**trace, field: wrong})
+                                     ["openclash_core_trace"],
+                                     "INVALID_OPENCLASH_CORE_TRACE")
+            binary.write_bytes(b"not an ELF")
+            self.assertEqual(check({**trace, "binary_sha256":
+                                    hashlib.sha256(b"not an ELF").hexdigest()})
+                             ["openclash_core_trace"],
+                             "INVALID_OPENCLASH_CORE_TRACE")
 
 
 if __name__ == "__main__":

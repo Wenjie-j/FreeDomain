@@ -27,6 +27,7 @@ REQUIRED_ROOT_FILES = (
     "usr/lib/lua/luci/model/cbi/singbox_status.lua",
     "usr/bin/sing-box-firewall4",
     "usr/bin/sing-box",
+    "etc/openclash/core/clash_meta",
 )
 CORE_TAGS = {"with_quic", "with_dhcp", "with_wireguard", "with_utls", "with_clash_api"}
 CUSTOM_OWNED_FILES = (
@@ -42,6 +43,8 @@ CORE_FORBIDDEN_FILES = (
 )
 V4_BASE = "92a2d104145c8d265851c4b388a41bd8e9c21cd9"
 CORE_SOURCE = "1ac1a339cb1223e9c70eae14c44411c75033c02d"
+OPENCLASH_CORE_SOURCE = "6b99254c577e4e674887e93f42da89a03b5e9e44"
+OPENCLASH_CORE_BLOB = "5c90d325491032c316849c0ed39711a16dfdda4c"
 MUTATION_ACTIONS = ("active", "test", "delete", "move", "add_link", "add_raw",
                     "add_manual", "update", "sub_add", "sub_update", "sub_rename",
                     "sub_delete")
@@ -87,7 +90,8 @@ def package_ownership_checks(owners: dict | None) -> dict:
     if owners is None:
         return {"core_binary_owned_by_core": "NOT_INSPECTED",
                 "custom_files_not_owned_by_core": "NOT_INSPECTED",
-                "custom_files_have_separate_owner": "NOT_INSPECTED"}
+                "custom_files_have_separate_owner": "NOT_INSPECTED",
+                "openclash_core_owned_separately": "NOT_INSPECTED"}
     if not isinstance(owners, dict) or any(
         not isinstance(path, str) or not isinstance(packages, list)
         or not packages or not all(isinstance(pkg, str) and pkg for pkg in packages)
@@ -103,12 +107,15 @@ def package_ownership_checks(owners: dict | None) -> dict:
         "custom_files_have_separate_owner": all(
             len(owner_set(path)) == 1 and "sing-box" not in owner_set(path)
             for path in CUSTOM_OWNED_FILES),
+        "openclash_core_owned_separately": (
+            owner_set("etc/openclash/core/clash_meta") == {"arthur-openclash-core"}),
     }
 
 
 def inspect(artifact: Path, root_dir: Path | None = None,
             core_build_report: dict | None = None,
-            package_file_owners: dict | None = None) -> dict:
+            package_file_owners: dict | None = None,
+            openclash_core_build_report: dict | None = None) -> dict:
     with zipfile.ZipFile(artifact) as z:
         manifests = [n for n in z.namelist() if n.endswith("jdcloud_re-ss-01.manifest")]
         if len(manifests) != 1 or "final.config" not in z.namelist():
@@ -151,11 +158,33 @@ def inspect(artifact: Path, root_dir: Path | None = None,
                 core_trace = "MATCHES_DECLARED_V4_BUILD_TRACE"
         if core_trace != "MATCHES_DECLARED_V4_BUILD_TRACE":
             core_trace = "INVALID_V4_BUILD_TRACE"
+    # OpenClash's LuCI APK does not include the separate ARM64 proxy core.
+    # Verify staged bytes and a pinned, declared source trace independently.
+    openclash_trace = "MISSING_OPENCLASH_CORE_TRACE"
+    if root_dir is not None and isinstance(openclash_core_build_report, dict):
+        binary = root_dir / "etc/openclash/core/clash_meta"
+        if binary.is_file():
+            data = binary.read_bytes()
+            if (len(data) >= 20 and data[:6] == b"\x7fELF\x02\x01"
+                    and data[18:20] == b"\xb7\x00"
+                    and openclash_core_build_report.get("source_repository")
+                    == "https://github.com/vernesong/OpenClash.git"
+                    and openclash_core_build_report.get("source_commit")
+                    == OPENCLASH_CORE_SOURCE
+                    and openclash_core_build_report.get("source_blob_sha")
+                    == OPENCLASH_CORE_BLOB
+                    and openclash_core_build_report.get("target_arch") == "aarch64"
+                    and openclash_core_build_report.get("binary_sha256")
+                    == hashlib.sha256(data).hexdigest()):
+                openclash_trace = "MATCHES_DECLARED_OPENCLASH_CORE_TRACE"
+        if openclash_trace != "MATCHES_DECLARED_OPENCLASH_CORE_TRACE":
+            openclash_trace = "INVALID_OPENCLASH_CORE_TRACE"
     complete = (not missing and all(flags.values())
                 and all(x is True for x in root_files.values())
                 and all(x is True for x in backend_checks.values())
                 and all(x is True for x in ownership_checks.values())
-                and core_trace == "MATCHES_DECLARED_V4_BUILD_TRACE")
+                and core_trace == "MATCHES_DECLARED_V4_BUILD_TRACE"
+                and openclash_trace == "MATCHES_DECLARED_OPENCLASH_CORE_TRACE")
     return {
         "classification": "COMPONENT_INVENTORY_ONLY_NOT_FLASH_APPROVAL",
         "artifact": artifact.name,
@@ -165,6 +194,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
         "backend_port_checks": backend_checks,
         "package_file_ownership": ownership_checks,
         "core_build_trace": core_trace,
+        "openclash_core_trace": openclash_trace,
         "component_gate": "COMPONENTS_PRESENT" if complete else "BLOCKED_INCOMPLETE_COMPONENTS",
         "release_note": "Boot, config migration, recovery and interactive UI still require separate validation.",
     }
@@ -178,6 +208,8 @@ def main(argv=None) -> int:
                     help="Metadata from a new V4 toolchain build; never the old router binary")
     ap.add_argument("--package-file-owners", type=Path,
                     help="Build package file lists as JSON path-to-package arrays")
+    ap.add_argument("--openclash-core-build-report", type=Path,
+                    help="Declared pinned ARM64 OpenClash core provenance and staged binary SHA-256")
     ap.add_argument("--output", type=Path)
     args = ap.parse_args(argv)
     try:
@@ -185,8 +217,11 @@ def main(argv=None) -> int:
                              if args.core_build_report else None)
         package_file_owners = (json.loads(args.package_file_owners.read_text(encoding="utf-8"))
                                if args.package_file_owners else None)
+        openclash_core_build_report = (
+            json.loads(args.openclash_core_build_report.read_text(encoding="utf-8"))
+            if args.openclash_core_build_report else None)
         report = inspect(args.artifact, args.root_dir, core_build_report,
-                         package_file_owners)
+                         package_file_owners, openclash_core_build_report)
     except (OSError, ValueError, UnicodeError, zipfile.BadZipFile) as exc:
         report = {"classification": "COMPONENT_INVENTORY_ONLY_NOT_FLASH_APPROVAL",
                   "component_gate": "BLOCKED_INVALID_ARTIFACT", "error": str(exc)}

@@ -25,6 +25,13 @@ the custom UI, service and firewall backend must have separate package owners.
 Without a report the ownership checks remain `NOT_INSPECTED` and block. A
 declaration does not prove the package archive contents; derive this report
 from actual package files when V4 packages exist.
+The OpenClash LuCI APK is only its management UI. The component gate also
+requires an actual ARM64 ELF at `/etc/openclash/core/clash_meta`, a declared
+source revision/blob and staged binary digest via `--openclash-core-build-report`,
+and separate ownership by a future `arthur-openclash-core` package. That package
+and binary are not yet integrated. The trace fields are declarations, not
+independent proof of provenance; the package build must later fetch and verify
+the locked blob before extracting it. Missing evidence blocks the gate.
 This is a declared offline build trace, not proof of hardware runtime or
 cryptographic supply chain attestation. Neither this gate nor the inherited OTA gates prove runtime
 1GiB RAM, radio calibration, live NSS acceleration, migration, or recovery.
