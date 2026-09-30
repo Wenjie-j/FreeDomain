@@ -1,0 +1,51 @@
+name: Arthur V4 pinned LuCI Chinese translation check
+
+on:
+  push:
+    branches:
+      - arthur-v4-cn-bypass-order
+      - arthur-v4-core-report
+    paths:
+      - '.github/workflows/arthur-v4-luci-translation.yml'
+      - '.github/workflows/arthur-v4-config-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  translation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile pinned po2lmo and convert pinned OpenClash Chinese resource
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/openwrt/luci.git "$RUNNER_TEMP/luci"
+          git -C "$RUNNER_TEMP/luci" checkout 0818828b3bf7ccc71f9a45a34873fb63826a2802
+          make -C "$RUNNER_TEMP/luci/modules/luci-base/src" po2lmo
+          curl -fL --max-time 60 --retry 1 -o "$RUNNER_TEMP/openclash.zh-cn.po" \
+            https://raw.githubusercontent.com/vernesong/OpenClash/c3a33c1d3407956fdf8f0e0b7c1a4c52e6ad9593/luci-app-openclash/po/zh-cn/openclash.zh-cn.po
+          "$RUNNER_TEMP/luci/modules/luci-base/src/po2lmo" \
+            "$RUNNER_TEMP/openclash.zh-cn.po" "$RUNNER_TEMP/openclash.zh-cn.lmo"
+          test -s "$RUNNER_TEMP/openclash.zh-cn.lmo"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          binary = Path(os.environ['RUNNER_TEMP'], 'openclash.zh-cn.lmo').read_bytes()
+          report = {
+              'classification': 'HOST_TRANSLATION_ONLY_NOT_PACKAGE_OR_ROUTER_APPROVAL',
+              'luci_source_commit': '0818828b3bf7ccc71f9a45a34873fb63826a2802',
+              'openclash_source_commit': 'c3a33c1d3407956fdf8f0e0b7c1a4c52e6ad9593',
+              'lmo_size': len(binary), 'lmo_sha256': hashlib.sha256(binary).hexdigest(),
+              'status': 'PASS_PINNED_CHINESE_TRANSLATION',
+          }
+          Path('v4-luci-translation-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arthur-v4-luci-translation-check
+          path: v4-luci-translation-preflight.json
+          if-no-files-found: error
+          retention-days: 30

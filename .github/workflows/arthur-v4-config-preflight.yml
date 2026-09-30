@@ -165,6 +165,18 @@ jobs:
               raise SystemExit(2)
           PY
 
+      - name: Prepare pinned LuCI translation tool before long compile
+        working-directory: openwrt
+        run: |
+          # LuCI HostBuild installs into hostpkg, not tools' host directory.
+          make -j2 package/feeds/luci/luci-base/host/compile V=s
+          test -x staging_dir/hostpkg/bin/po2lmo
+          export PATH="$PWD/staging_dir/hostpkg/bin:$PATH"
+          command -v po2lmo
+          po2lmo package/arthur/luci-app-openclash/po/zh-cn/openclash.zh-cn.po \
+            "$RUNNER_TEMP/openclash.zh-cn.lmo"
+          test -s "$RUNNER_TEMP/openclash.zh-cn.lmo"
+
       - name: Install OpenWrt host tools and target toolchain
         working-directory: openwrt
         run: |
@@ -217,10 +229,9 @@ jobs:
       - name: Compile pinned OpenClash LuCI package (no image)
         working-directory: openwrt
         run: |
-          # OpenClash calls po2lmo directly in Build/Prepare. Its Makefile does
-          # not declare luci-base/host, so build the pinned LuCI host tool first.
-          make -j2 package/feeds/luci/luci-base/host/compile V=s
-          test -x staging_dir/host/bin/po2lmo
+          # Prepared and exercised before the long kernel/toolchain work.
+          test -x staging_dir/hostpkg/bin/po2lmo
+          export PATH="$PWD/staging_dir/hostpkg/bin:$PATH"
           make -j2 package/arthur/luci-app-openclash/compile V=s
           openclash_apk="$(find bin/packages -name 'luci-app-openclash-*.apk' -print -quit)"
           openclash_root="$(find build_dir/target-* -type d \

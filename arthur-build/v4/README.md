@@ -353,6 +353,16 @@ Makefile builds that program via its host target. The next run now compiles
 dependency; `wget` is also installed for Argon's declared dependency. This
 does not establish that the OpenClash package or final image has passed.
 
+Run `36687484654` built the kernel, Sing-box and firewall4 test package,
+then built `po2lmo` successfully. It stopped at the workflow's mistaken
+`staging_dir/host/bin/po2lmo` assertion; the actual HostBuild installation is
+`staging_dir/hostpkg/bin/po2lmo`. OpenClash compilation never started.
+The corrected step uses hostpkg in both the executable check and PATH,
+and builds/exercises the converter against OpenClash's actual Chinese PO
+before long toolchain/kernel work. A separate short translation workflow
+also compiles the fixed LuCI converter and translates the pinned Chinese
+resource. Neither conversion alone proves LuCI runtime or package success.
+
 The staging package now prepares the official stable Mihomo `v1.19.31` for
 OpenClash. `prepare_openclash_core.py` checks its gzip against the pinned
 release SHA-256, bounds compressed/decompressed sizes, rejects symlinked

@@ -46,7 +46,11 @@ class ConfigPreflightContractTests(unittest.TestCase):
 
     def test_openclash_prepares_luci_host_translation_tool(self):
         self.assertIn("package/feeds/luci/luci-base/host/compile", self.source)
-        self.assertIn("test -x staging_dir/host/bin/po2lmo", self.source)
+        self.assertIn("test -x staging_dir/hostpkg/bin/po2lmo", self.source)
+        self.assertNotIn("test -x staging_dir/host/bin/po2lmo", self.source)
+        self.assertLess(self.source.index("package/feeds/luci/luci-base/host/compile"),
+                        self.source.index("make -j2 tools/install"))
+        self.assertIn("po2lmo package/arthur/luci-app-openclash/po/zh-cn/openclash.zh-cn.po", self.source)
         self.assertIn("bash curl ruby ruby-yaml unzip wget", self.source)
 
     def test_mwan3_uses_nft_compatibility_provider_not_legacy_xtables(self):
