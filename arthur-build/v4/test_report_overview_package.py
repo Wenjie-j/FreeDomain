@@ -169,6 +169,12 @@ class OverviewPayloadTests(unittest.TestCase):
         self.config.write_text("CONFIG_PACKAGE_luci-app-arthur-overview=y\n")
         with self.assertRaisesRegex(ValueError, "outside the image"):
             self.check()
+        diagnostic, _ = audit.build_report(self.root, self.apk, self.config,
+                                           self.source, self.owners,
+                                           allow_diagnostic_root_probe=True)
+        self.assertTrue(diagnostic["diagnostic_root_probe_selected"])
+        self.assertFalse(diagnostic["firmware_inclusion_approved"])
+        self.assertFalse(diagnostic["luci_runtime_verified"])
         self.config.write_text("CONFIG_PACKAGE_luci-app-arthur-overview=m\n")
         self.apk.unlink()
         with self.assertRaisesRegex(ValueError, "APK missing"):

@@ -105,6 +105,14 @@ class OpenClashCoreTests(unittest.TestCase):
         result, owners = report.build_report(root, apk, config, {}, trace)
         self.assertEqual(owners[report.CORE_PATH], [report.PACKAGE])
         self.assertFalse(result["runtime_tested"])
+        config.write_text("CONFIG_PACKAGE_arthur-openclash-core=y\n")
+        with self.assertRaisesRegex(ValueError, "outside the image"):
+            report.build_report(root, apk, config, {}, trace)
+        diagnostic, _ = report.build_report(root, apk, config, {}, trace, True)
+        self.assertTrue(diagnostic["diagnostic_root_probe_selected"])
+        self.assertFalse(diagnostic["image_inclusion_approved"])
+        self.assertFalse(diagnostic["runtime_tested"])
+        config.write_text("CONFIG_PACKAGE_arthur-openclash-core=m\n")
         for existing, record in (({report.CORE_PATH: ["luci-app-openclash"]}, trace),
                                  ({}, {**trace, "binary_sha256": "0" * 64})):
             with self.assertRaises(ValueError):

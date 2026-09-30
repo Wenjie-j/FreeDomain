@@ -294,7 +294,7 @@ jobs:
             --source-lock "$GITHUB_WORKSPACE/arthur-build/v4/feeds.lock.json" \
             --output-dir ..
 
-      - name: Package verified OpenClash ARM64 core (test APK outside image)
+      - name: Audit pinned OpenClash core APK (diagnostic probe may include it)
         working-directory: openwrt
         run: |
           make -j2 package/arthur/arthur-openclash-core/compile V=s
@@ -303,12 +303,17 @@ jobs:
             -path '*/arthur-openclash-core-1.19.31/.pkgdir/arthur-openclash-core' -print -quit)"
           test -n "$core_apk"
           test -n "$core_root"
+          probe_args=()
+          if [[ "$GITHUB_REF_NAME" == 'arthur-v4-reviewed-root-probe' ]]; then
+            probe_args+=(--allow-diagnostic-root-probe)
+          fi
           python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_openclash_core_package.py" \
             --package-root "$core_root" --apk "$core_apk" --config .config \
             --owners ../v4-package-file-owners.partial.json \
-            --trace ../v4-openclash-core-build-trace.json --output-dir ..
+            --trace ../v4-openclash-core-build-trace.json --output-dir .. \
+            "${probe_args[@]}"
 
-      - name: Compile Arthur read-only status page (test APK outside image)
+      - name: Audit read-only Arthur status APK (diagnostic probe may include it)
         working-directory: openwrt
         run: |
           make -j2 package/arthur/luci-app-arthur-overview/compile V=s
@@ -323,11 +328,16 @@ jobs:
           staging_dir/host/bin/apk extract --allow-untrusted --no-chown \
             --destination "$overview_extracted" "$overview_apk"
           find "$overview_extracted" -type f -printf '%P\n' | sort
+          probe_args=()
+          if [[ "$GITHUB_REF_NAME" == 'arthur-v4-reviewed-root-probe' ]]; then
+            probe_args+=(--allow-diagnostic-root-probe)
+          fi
           python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_overview_package.py" \
             --package-root "$overview_root" --apk "$overview_apk" --config .config \
             --apk-extracted-root "$overview_extracted" \
             --source "$GITHUB_WORKSPACE/arthur-build/v4/luci-app-arthur-overview" \
-            --owners ../v4-package-file-owners.partial.json --output-dir ..
+            --owners ../v4-package-file-owners.partial.json --output-dir .. \
+            "${probe_args[@]}"
 
       - name: Assemble diagnostic V4 image (not a release)
         if: github.ref_name == 'arthur-v4-image-inventory' || github.ref_name == 'arthur-v4-reviewed-root-probe'

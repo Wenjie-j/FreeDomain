@@ -13,7 +13,8 @@ CORE_PATH = "etc/openclash/core/clash_meta"
 
 
 def build_report(root: Path, apk: Path, config: Path,
-                 owners: dict, trace: dict) -> tuple[dict, dict]:
+                 owners: dict, trace: dict,
+                 allow_diagnostic_root_probe: bool = False) -> tuple[dict, dict]:
     if root.is_symlink() or not root.is_dir():
         raise ValueError("missing or symlinked core package root")
     paths = list(root.rglob("*"))
@@ -29,8 +30,13 @@ def build_report(root: Path, apk: Path, config: Path,
         raise ValueError("staged core is not executable")
     if not trace_matches(data, trace):
         raise ValueError("core preparation trace differs from staged payload")
-    if "CONFIG_PACKAGE_arthur-openclash-core=m" not in config.read_text().splitlines():
-        raise ValueError("prebuilt trial core must be a module outside the candidate image")
+    selected = [line for line in config.read_text().splitlines()
+                if line.startswith("CONFIG_PACKAGE_arthur-openclash-core=")]
+    diagnostic_included = selected == ["CONFIG_PACKAGE_arthur-openclash-core=y"]
+    if selected != ["CONFIG_PACKAGE_arthur-openclash-core=m"] and not (
+            diagnostic_included and allow_diagnostic_root_probe):
+        raise ValueError("prebuilt trial core must remain outside the image "
+                         "unless explicitly included by diagnostic root probe")
     if not apk.is_file() or not re.fullmatch(r"arthur-openclash-core-[A-Za-z0-9._+-]+\.apk", apk.name):
         raise ValueError("expected core APK missing")
     merged = {path: list(packages) for path, packages in owners.items()}
@@ -41,6 +47,7 @@ def build_report(root: Path, apk: Path, config: Path,
         "binary_sha256": trace["binary_sha256"], "target_arch": "aarch64",
         "source_version": VERSION,
         "installed_file_count": 1, "configuration_or_service_installed": False,
+        "diagnostic_root_probe_selected": diagnostic_included,
         "image_inclusion_approved": False,
         "runtime_tested": False, "status": "PACKAGE_PAYLOAD_AUDITED",
     }, merged
@@ -50,10 +57,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("package-root", "apk", "config", "owners", "trace", "output-dir"):
         parser.add_argument("--" + name, required=True, type=Path)
+    parser.add_argument("--allow-diagnostic-root-probe", action="store_true",
+                        help="Allow y only for the isolated non-release diagnostic probe")
     args = parser.parse_args()
     report, owners = build_report(args.package_root, args.apk, args.config,
                                  json.loads(args.owners.read_text()),
-                                 json.loads(args.trace.read_text()))
+                                 json.loads(args.trace.read_text()),
+                                 args.allow_diagnostic_root_probe)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "v4-openclash-core-package-build.json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8")

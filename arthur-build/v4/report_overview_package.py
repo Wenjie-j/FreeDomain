@@ -24,7 +24,8 @@ READ_UBUS = {
 
 
 def build_report(root: Path, apk: Path, config: Path, source: Path,
-                 owners: dict, extracted: Path | None = None) -> tuple[dict, dict]:
+                 owners: dict, extracted: Path | None = None,
+                 allow_diagnostic_root_probe: bool = False) -> tuple[dict, dict]:
     if root.is_symlink() or not root.is_dir():
         raise ValueError("missing or symlinked overview payload root")
     paths = list(root.rglob("*"))
@@ -52,8 +53,13 @@ def build_report(root: Path, apk: Path, config: Path, source: Path,
             or menu["admin/status/arthur"].get("action") != {"type": "view", "path": "arthur/overview"}
             or menu["admin/status/arthur"].get("depends") != {"acl": [PACKAGE]}):
         raise ValueError("overview menu differs from read-only entry")
-    if f"CONFIG_PACKAGE_{PACKAGE}=m" not in config.read_text().splitlines():
-        raise ValueError("overview trial must remain outside the image")
+    selected = [line for line in config.read_text().splitlines()
+                if line.startswith(f"CONFIG_PACKAGE_{PACKAGE}=")]
+    diagnostic_included = selected == [f"CONFIG_PACKAGE_{PACKAGE}=y"]
+    if selected != [f"CONFIG_PACKAGE_{PACKAGE}=m"] and not (
+            diagnostic_included and allow_diagnostic_root_probe):
+        raise ValueError("overview trial must remain outside the image "
+                         "unless explicitly included by diagnostic root probe")
     if (apk.is_symlink() or not apk.is_file()
             or apk.name != f"{PACKAGE}-0.1-r1.apk" or not apk.stat().st_size):
         raise ValueError("expected overview APK missing")
@@ -94,6 +100,7 @@ def build_report(root: Path, apk: Path, config: Path, source: Path,
             (extracted / APK_FILE_LIST).read_bytes()).hexdigest()}
             if extracted is not None else {}),
         "luci_runtime_verified": False,
+        "diagnostic_root_probe_selected": diagnostic_included,
         "firmware_inclusion_approved": False,
     }
     merged = dict(owners)
@@ -106,9 +113,12 @@ def main():
     for name in ("package-root", "apk", "config", "source", "owners", "output-dir"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--apk-extracted-root", type=Path)
+    parser.add_argument("--allow-diagnostic-root-probe", action="store_true",
+                        help="Allow y only for the isolated non-release diagnostic probe")
     args = parser.parse_args()
     report, owners = build_report(args.package_root, args.apk, args.config, args.source,
-                                 json.loads(args.owners.read_text()), args.apk_extracted_root)
+                                 json.loads(args.owners.read_text()), args.apk_extracted_root,
+                                 args.allow_diagnostic_root_probe)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "v4-overview-package-build.json").write_text(json.dumps(report, indent=2) + "\n")
     (args.output_dir / "v4-package-file-owners.partial.json").write_text(json.dumps(owners, indent=2) + "\n")
