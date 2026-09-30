@@ -24,6 +24,8 @@ on:
       - 'arthur-build/v4/prepare_openclash_core.py'
       - 'arthur-build/v4/report_openclash_core_package.py'
       - 'arthur-build/v4/package/arthur-openclash-core/**'
+      - 'arthur-build/v4/luci-app-arthur-overview/**'
+      - 'arthur-build/v4/report_overview_package.py'
   workflow_dispatch:
 
 permissions:
@@ -87,6 +89,9 @@ jobs:
             package/arthur/
           cp -a "$GITHUB_WORKSPACE/arthur-build/v4/package/arthur-openclash-core" \
             package/arthur/
+          cp -a "$GITHUB_WORKSPACE/arthur-build/v4/luci-app-arthur-overview" \
+            package/arthur/
+          test -f feeds/luci/luci.mk
 
       - name: Verify Sing-box source and stage the reviewed recipe
         run: |
@@ -141,7 +146,8 @@ jobs:
           config = set(Path('.config').read_text().splitlines())
           missing = [key for key in flags if f'CONFIG_{key}=y' not in config]
           module_flags = ('PACKAGE_arthur-singbox-firewall4-test',
-                          'PACKAGE_arthur-openclash-core')
+                          'PACKAGE_arthur-openclash-core',
+                          'PACKAGE_luci-app-arthur-overview')
           missing_modules = [key for key in module_flags
                              if f'CONFIG_{key}=m' not in config]
           forbidden = ('PACKAGE_iptables-zz-legacy', 'PACKAGE_ip6tables-zz-legacy')
@@ -260,6 +266,21 @@ jobs:
             --owners ../v4-package-file-owners.partial.json \
             --trace ../v4-openclash-core-build-trace.json --output-dir ..
 
+      - name: Compile Arthur read-only status page (test APK outside image)
+        working-directory: openwrt
+        run: |
+          make -j2 package/arthur/luci-app-arthur-overview/compile V=s
+          overview_apk="$(find bin/packages -name 'luci-app-arthur-overview-0.1-r1.apk' -print -quit)"
+          overview_root="$(find build_dir/target-* -type d \
+            -path '*/luci-app-arthur-overview/.pkgdir/luci-app-arthur-overview' -print -quit)"
+          test -n "$overview_apk"
+          test -n "$overview_root"
+          node --check "$overview_root/www/luci-static/resources/view/arthur/overview.js"
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_overview_package.py" \
+            --package-root "$overview_root" --apk "$overview_apk" --config .config \
+            --source "$GITHUB_WORKSPACE/arthur-build/v4/luci-app-arthur-overview" \
+            --owners ../v4-package-file-owners.partial.json --output-dir ..
+
       - name: Upload configuration report
         if: always()
         uses: actions/upload-artifact@v4
@@ -275,9 +296,11 @@ jobs:
             v4-openclash-package-build.json
             v4-openclash-core-build-trace.json
             v4-openclash-core-package-build.json
+            v4-overview-package-build.json
             openwrt/bin/packages/**/sing-box-1.14.1-r1.apk
             openwrt/bin/packages/**/arthur-singbox-firewall4-test-*.apk
             openwrt/bin/packages/**/luci-app-openclash-*.apk
+            openwrt/bin/packages/**/luci-app-arthur-overview-0.1-r1.apk
             openwrt/.config
             openwrt/feeds.conf
           include-hidden-files: true

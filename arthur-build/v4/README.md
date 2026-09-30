@@ -266,6 +266,19 @@ and the current custom UI source can be integrated. Run `make defconfig` in the
 isolated tree and compare the effective config and produced manifest; the
 fragment alone does not prove a package built or that its UI works.
 
+The new read-only Arthur overview now has a prepared package build path.
+Stage `luci-app-arthur-overview` under `package/arthur/`; its Makefile uses
+`$(TOPDIR)/feeds/luci/luci.mk`, since the former `../../luci.mk` path would
+not resolve from that external package location. The package is selected
+as `m` and remains outside the image. A future preflight run compiles it,
+checks the staged JavaScript syntax and calls `report_overview_package.py`.
+That report requires exactly the reviewed view, menu and read-only ACL,
+rejects unexpected init/config files and owner collisions, and records
+the paired APK digest. It checks the payload staging tree, not an independently
+extracted APK. New package compilation and real LuCI runtime remain pending;
+these changes are on the staging branch while run `36699112998` continues
+on its original revision.
+
 The official v1.14.1 source archive is pinned by SHA-256 in `feeds.lock.json`.
 `prepare_singbox_recipe.py` verifies either that archive or the pinned Git
 commit and tag, including its `go.mod` (Go 1.25.5 minimum), and changes only
