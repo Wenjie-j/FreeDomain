@@ -432,6 +432,17 @@ The OpenClash core APK was checked in CI but not uploaded. The overview package
 step was added after this run's commit, so this success does not cover it.
 No final V4 root filesystem, custom UI integration or hardware test was produced.
 
+The first overview preflight run `36718457124` blocked at `make defconfig`:
+23 other selections remained, but `luci-app-arthur-overview=m` disappeared.
+The follow-up `36719323404` showed the local Makefile's `DUMP=1` emitted a
+valid package but `tmp/.packageinfo` and generated Kconfig had no entry.
+The pinned buildroot's `include/scan.mk` first selects Makefiles containing
+`call BuildPackage`, including a comment convention in its LuCI feed. The
+external overview Makefile only included `luci.mk`; it did not carry that
+scanner marker. Its Makefile now includes the marker, so the next cloud
+`make defconfig` can verify that package discovery actually works. This is a
+candidate fix, pending the next CI result.
+
 The next package run also invokes `smoke_singbox_core.py` on the newly built
 ARM64 core under QEMU with that build's musl toolchain sysroot. Before execution
 it checks the core's digest and pinned trace. It then checks the exact version,

@@ -10,3 +10,4 @@ LUCI_MINIFY_JS:=0
 PKG_LICENSE:=Apache-2.0
 
 include $(TOPDIR)/feeds/luci/luci.mk
+# call BuildPackage - OpenWrt package scanner marker for external LuCI packages

@@ -91,6 +91,9 @@ class ConfigPreflightContractTests(unittest.TestCase):
         recipe = (base / "luci-app-arthur-overview/Makefile").read_text()
         self.assertIn("include $(TOPDIR)/feeds/luci/luci.mk", recipe)
         self.assertNotIn("include ../../luci.mk", recipe)
+        # OpenWrt scan.mk discovers this external package by the same marker
+        # used in the pinned LuCI feed before make defconfig.
+        self.assertIn("call BuildPackage", recipe)
 
 
 if __name__ == "__main__":
