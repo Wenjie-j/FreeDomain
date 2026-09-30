@@ -362,6 +362,12 @@ and builds/exercises the converter against OpenClash's actual Chinese PO
 before long toolchain/kernel work. A separate short translation workflow
 also compiles the fixed LuCI converter and translates the pinned Chinese
 resource. Neither conversion alone proves LuCI runtime or package success.
+Run `36699050203` passed that independent translation check at commit
+`9cda024c`, producing a 72,304-byte LMO with SHA-256
+`26d6d74caad657f9fe463e0ddc3a78d3dbd52fd198f3705317a39ed20288d51d`.
+Run `36699112998` now performs the corrected full package sequence, including
+the independently verified stable ARM64 core trial. No firmware image or
+router write is part of either check.
 
 The staging package now prepares the official stable Mihomo `v1.19.31` for
 OpenClash. `prepare_openclash_core.py` checks its gzip against the pinned
