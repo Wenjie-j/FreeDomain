@@ -109,10 +109,16 @@ class CoreOriginTest(unittest.TestCase):
             claimed_old["binary_sha256"] = hashlib.sha256(core.read_bytes()).hexdigest()
             result = module.inspect(archive, root, claimed_old)
             self.assertEqual(result["core_build_trace"], "MATCHES_DECLARED_V4_BUILD_TRACE")
+            self.assertEqual(result["core_binary_identity"]["status"],
+                             "ROOT_CORE_MATCHES_PACKAGE_TRACE")
             self.assertEqual(result["component_gate"], "BLOCKED_INCOMPLETE_COMPONENTS")
             claimed_old["binary_sha256"] = "0" * 64
             result = module.inspect(archive, root, claimed_old)
             self.assertEqual(result["core_build_trace"], "INVALID_V4_BUILD_TRACE")
+            self.assertEqual(result["core_binary_identity"]["status"],
+                             "ROOT_CORE_DIFFERS_FROM_PACKAGE_TRACE")
+            self.assertEqual(result["core_binary_identity"]["root_binary_sha256"],
+                             hashlib.sha256(core.read_bytes()).hexdigest())
 
     def test_openclash_core_requires_pinned_trace_arm64_elf_and_separate_owner(self):
         with tempfile.TemporaryDirectory() as temp:

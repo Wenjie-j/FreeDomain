@@ -152,25 +152,36 @@ def inspect(artifact: Path, root_dir: Path | None = None,
     # A copied Linux 4.4 binary can have the same name and version as a V4 build.
     # This only checks declared build trace + byte identity, not hardware runtime.
     core_trace = "MISSING_V4_BUILD_TRACE"
+    core_identity = {"status": "NOT_INSPECTED"}
     if root_dir is not None and isinstance(core_build_report, dict):
         binary = root_dir / "usr/bin/sing-box"
         try:
             core_bytes, _ = read_core_file(binary)
         except (OSError, ValueError):
             core_bytes = None
-        if core_bytes is not None and all((
+        metadata_valid = all((
             core_build_report.get("base_commit") == V4_BASE,
             core_build_report.get("source_commit") == CORE_SOURCE,
             core_build_report.get("source_version") == "1.14.1",
             core_build_report.get("target_arch_packages") == "aarch64_cortex-a53",
             isinstance(core_build_report.get("build_tags"), list),
-        )):
-            tags = core_build_report["build_tags"]
-            if (all(isinstance(tag, str) for tag in tags)
-                    and CORE_TAGS.issubset(tags)
-                    and hashlib.sha256(core_bytes).hexdigest()
-                    == core_build_report.get("binary_sha256")):
-                core_trace = "MATCHES_DECLARED_V4_BUILD_TRACE"
+        ))
+        tags = core_build_report.get("build_tags", [])
+        metadata_valid = (metadata_valid and all(isinstance(tag, str) for tag in tags)
+                          and CORE_TAGS.issubset(tags))
+        actual_digest = hashlib.sha256(core_bytes).hexdigest() if core_bytes is not None else None
+        declared_digest = core_build_report.get("binary_sha256")
+        declared_digest = declared_digest if isinstance(declared_digest, str) else None
+        core_identity = {
+            "status": ("ROOT_CORE_NOT_REGULAR_EXECUTABLE_ARM64_ELF" if actual_digest is None
+                       else "PACKAGE_TRACE_METADATA_INVALID" if not metadata_valid
+                       else "ROOT_CORE_DIFFERS_FROM_PACKAGE_TRACE"
+                       if actual_digest != declared_digest else "ROOT_CORE_MATCHES_PACKAGE_TRACE"),
+            "root_binary_sha256": actual_digest,
+            "package_trace_binary_sha256": declared_digest,
+        }
+        if core_identity["status"] == "ROOT_CORE_MATCHES_PACKAGE_TRACE":
+            core_trace = "MATCHES_DECLARED_V4_BUILD_TRACE"
         if core_trace != "MATCHES_DECLARED_V4_BUILD_TRACE":
             core_trace = "INVALID_V4_BUILD_TRACE"
     # OpenClash's LuCI APK does not include the separate ARM64 proxy core.
@@ -199,6 +210,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
         "backend_port_checks": backend_checks,
         "package_file_ownership": ownership_checks,
         "core_build_trace": core_trace,
+        "core_binary_identity": core_identity,
         "openclash_core_trace": openclash_trace,
         "component_gate": "COMPONENTS_PRESENT" if complete else "BLOCKED_INCOMPLETE_COMPONENTS",
         "release_note": "Boot, config migration, recovery and interactive UI still require separate validation.",

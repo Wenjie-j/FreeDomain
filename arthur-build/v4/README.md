@@ -10,7 +10,15 @@ inherited offline upgrade gate and checks the actual manifest and assembled
 uses the package staging sysroot as a substitute for an assembled image.
 An incomplete component report is expected at this stage; a successful build
 does not make that report pass, and the upgrade decision remains blocked.
-The first cloud diagnostic image build is pending.
+The first cloud diagnostic image build completed successfully in run 36761230075.
+Its manifest and root inspection found the deliberately external trial packages
+absent from the image, and the assembled Sing-box binary still needs an identity
+check against its package trace. The FIT DTB has no static memory node, so the
+1 GiB bootloader memory map remains unverified. See `WORKPLAN.md` for sizes and
+the exact build evidence.
+The next diagnostic report records the root binary and package trace digests
+separately and labels an invalid ARM64 ELF, metadata mismatch or byte mismatch.
+The completed run did not retain root binary bytes for retrospective diagnosis.
 
 This branch combines the V3 6.12/NSS build workflow with the two previously
 separate read-only OTA gates. The V4 component gate checks the *actual image
@@ -129,6 +137,12 @@ exports were regenerated and packaged locally with all six digests checked.
 Their three Lua source files passed the host Lua 5.4 parser and both service
 scripts passed host shell syntax checks without executing the code. Those
 syntax checks do not establish target Lua compatibility or live service behavior.
+`audit_private_ui_package.py --staged /private/path/v4-ui-candidate --package
+/private/path/arthur-singbox-ui-private` independently compares the six staged
+files with the local test package and refuses added files, altered Makefile,
+changed permissions, digests or incomplete port flags. Its output contains only
+aggregate status. This local audit passed for the September 29 private source;
+it is not a target APK build or runtime check.
 
 The manager's restart helper now checks transparent-proxy/DNS stop before
 stopping the core, checks the core stop result, and refuses to start a second
