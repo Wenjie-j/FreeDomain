@@ -60,9 +60,10 @@ the read-only `list` route stays GET. Its status page checks the proposed
 firewall4 chain names and the generated dnsmasq include rather than the old
 iptables chain or UCI input. The staged setup service calls a future
 `sing-box-firewall4` executable and refuses to start when generated dnsmasq
-configuration does not include its runtime file. This is a fail-closed candidate:
-that executable has not been implemented, and the generated dnsmasq path is
-not yet verified on the V4 target. It excludes the legacy firewall and rules
+configuration does not include its runtime file. A non-activating test package
+for that executable now builds, but its target firewall4 and traffic behavior
+remain unverified. The generated dnsmasq path is also not yet verified on the
+V4 target. The private UI candidate excludes the legacy firewall and rules
 scripts, and labels the output `OFFLINE-ONLY.json`. Neither script stages a
 package in the image or relaxes the V4 and OTA gates. Example, using a private
 local copy of the archive:
@@ -323,8 +324,18 @@ The second package attempt (run `36538831447`) installed host tools and the
 cross toolchain, then stopped when the `gpio-button-hotplug` dependency
 required the as-yet ungenerated Linux 6.12 kernel `.config`. The workflow now
 builds `target/linux/compile` before the selected package, which should
-generate that configuration and kernel dependencies. This has not yet passed
-a cloud run; no V4 Sing-box package or firmware image has been produced.
+generate that configuration and kernel dependencies.
+
+Run `36623151485` completed that package path successfully. It produced the
+V4 `aarch64_cortex-a53` Sing-box 1.14.1 APK with SHA-256
+`19b5882d2fb51193a2440c60e3439a71f74946b7cf05cb3052390abc8d617e7b` and the
+non-activating firewall4 test APK, then uploaded package build traces and
+partial file ownership evidence. No firmware image or router runtime approval
+was produced. The next run adds the pinned OpenClash LuCI source and package
+compile. `report_openclash_package.py` checks its required LuCI/service files,
+sysupgrade preservation declaration and collisions with the Sing-box core and
+Arthur firewall4 package. Runtime DNS, firewall4 and NSS coexistence still
+requires target testing.
 
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.
