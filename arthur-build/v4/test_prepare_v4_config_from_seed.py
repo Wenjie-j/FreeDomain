@@ -25,6 +25,14 @@ CONFIG_PACKAGE_kmod-qca-nss-drv=y
         self.assertEqual(result.splitlines().count(
             "CONFIG_PACKAGE_luci-app-openclash=y"), 1)
         self.assertEqual(result.splitlines().count(
+            "CONFIG_PACKAGE_arthur-openclash-core=y"), 1)
+        self.assertEqual(result.splitlines().count(
+            "CONFIG_PACKAGE_luci-app-arthur-overview=y"), 1)
+        self.assertEqual(result.splitlines().count(
+            "CONFIG_PACKAGE_arthur-openclash-core=m"), 0)
+        self.assertEqual(result.splitlines().count(
+            "CONFIG_PACKAGE_luci-app-arthur-overview=m"), 0)
+        self.assertEqual(result.splitlines().count(
             "CONFIG_PACKAGE_arthur-singbox-firewall4-test=m"), 1)
         self.assertEqual(result.splitlines().count("CONFIG_PACKAGE_iptables-nft=y"), 1)
         self.assertIn("# CONFIG_PACKAGE_iptables-zz-legacy is not set", result)
