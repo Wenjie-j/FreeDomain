@@ -31,11 +31,13 @@ class TargetShellCandidateTest(unittest.TestCase):
         candidate.write_text("""set arthur_cn4 { type ipv4_addr; }
 chain arthur_singbox_udp {
  ip daddr { 10.0.0.0/8, 192.168.0.0/16 } return
+ ip daddr 203.0.113.7 return
  ip daddr @arthur_cn4 return
  meta l4proto udp tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
 }
 chain arthur_singbox_tcp_dns {
  ip daddr { 10.0.0.0/8, 192.168.0.0/16 } return
+ ip daddr 203.0.113.7 return
  ip daddr @arthur_cn4 return
  meta l4proto tcp redirect to :7892
 }
@@ -147,6 +149,26 @@ esac
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.include.exists())
         self.assertFalse((self.runtime / "rule").exists())
+
+    def test_proxy_endpoint_must_be_unique_and_before_cn_bypass_in_both_chains(self):
+        original = self.candidate.read_text()
+        endpoint = " ip daddr 203.0.113.7 return\n"
+        cn = " ip daddr @arthur_cn4 return\n"
+        cases = (
+            original.replace(endpoint, "", 1),
+            original.replace(endpoint, "", 2),
+            original.replace(endpoint + cn, cn + endpoint, 1),
+            original.replace(endpoint + cn, cn + endpoint),
+            original.replace(endpoint, endpoint * 2, 1),
+        )
+        for changed in cases:
+            with self.subTest(variant=changed.count(endpoint)):
+                self.candidate.write_text(changed)
+                result = self.call("start")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.include.exists())
+                self.assertFalse((self.runtime / "rule").exists())
+                self.assertFalse((self.runtime / "route").exists())
 
 
 if __name__ == "__main__":

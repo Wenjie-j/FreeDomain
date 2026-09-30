@@ -47,16 +47,18 @@ candidate_order_valid() {
         /^chain arthur_singbox_tcp_dns[[:space:]]*\{/ { chain = "tcp"; next }
         /^}/ { chain = "" }
         chain == "udp" && /ip daddr \{ .*10\.0\.0\.0\/8.*192\.168\.0\.0\/16.*\} return/ { udp_private = NR }
+        chain == "udp" && /^[[:space:]]*ip daddr [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ return$/ { udp_endpoint = NR; udp_endpoint_count++ }
         chain == "udp" && /ip daddr @arthur_cn4 return/ { udp_cn = NR }
         chain == "udp" && /meta l4proto udp tproxy ip to :7895/ { udp_proxy = NR }
         chain == "tcp" && /ip daddr \{ .*10\.0\.0\.0\/8.*192\.168\.0\.0\/16.*\} return/ { tcp_private = NR }
+        chain == "tcp" && /^[[:space:]]*ip daddr [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ return$/ { tcp_endpoint = NR; tcp_endpoint_count++ }
         chain == "tcp" && /ip daddr @arthur_cn4 return/ { tcp_cn = NR }
         chain == "tcp" && /meta l4proto tcp redirect to :7892/ { tcp_proxy = NR }
         END {
-            valid = udp_private && udp_cn && udp_proxy &&
-                    tcp_private && tcp_cn && tcp_proxy &&
-                    udp_private < udp_cn && udp_cn < udp_proxy &&
-                    tcp_private < tcp_cn && tcp_cn < tcp_proxy
+            valid = udp_private && udp_endpoint_count == 1 && udp_cn && udp_proxy &&
+                    tcp_private && tcp_endpoint_count == 1 && tcp_cn && tcp_proxy &&
+                    udp_private < udp_endpoint && udp_endpoint < udp_cn && udp_cn < udp_proxy &&
+                    tcp_private < tcp_endpoint && tcp_endpoint < tcp_cn && tcp_cn < tcp_proxy
             exit(valid ? 0 : 1)
         }
     ' "$CANDIDATE"
