@@ -28,8 +28,8 @@ from actual package files when V4 packages exist.
 The OpenClash LuCI APK is only its management UI. The component gate also
 requires an actual ARM64 ELF at `/etc/openclash/core/clash_meta`, a declared
 source revision/blob and staged binary digest via `--openclash-core-build-report`,
-and separate ownership by a future `arthur-openclash-core` package. That package
-and binary are not yet integrated. The trace fields are declarations, not
+and separate ownership by an `arthur-openclash-core` package. The core is not
+yet integrated into an image. The trace fields are declarations, not
 independent proof of provenance; the package build must later fetch and verify
 the locked blob before extracting it. Missing evidence blocks the gate.
 This is a declared offline build trace, not proof of hardware runtime or
@@ -351,6 +351,24 @@ Makefile builds that program via its host target. The next run now compiles
 `luci-base/host` explicitly before OpenClash and installs its missing `unzip`
 dependency; `wget` is also installed for Argon's declared dependency. This
 does not establish that the OpenClash package or final image has passed.
+
+The next staging change prepares that independent OpenClash core trial.
+`prepare_openclash_core.py` checks the archive against the pinned Git blob
+digest, rejects extra files, links and unsafe paths, validates a little-endian
+ARM64 executable, and stages only the executable without running it.
+`report_openclash_core_package.py` checks that the package owns exactly
+`/etc/openclash/core/clash_meta`, collides with no existing package, and matches
+the preparation trace. It installs no service or configuration.
+The locked upstream `master/core_version` identifies this binary candidate as
+`alpha-ge183c58`, so the config selects it as `m`, outside the image. The
+workflow uploads trace/audit reports only, not this core APK. Stable release
+selection, corresponding source/license review, actual cloud packaging and
+target runtime are still pending. Archive identity alone proves neither
+the original compiler/source nor hardware compatibility.
+An independent five-minute byte-audit workflow runs on the staging branch:
+it verifies the real locked archive and ARM64 file header without building a
+toolchain, executing the binary or publishing it. This can run alongside the
+existing long package build; its only artifact is audit metadata.
 
 The pinned mwan3 2.12.2 package still invokes iptables and declares the
 `iptables`/`ip6tables` virtual dependencies. The candidate therefore selects

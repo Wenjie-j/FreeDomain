@@ -23,7 +23,8 @@
     "revision": "6b99254c577e4e674887e93f42da89a03b5e9e44",
     "archive_path": "master/meta/clash-linux-arm64.tar.gz",
     "git_blob_sha": "5c90d325491032c316849c0ed39711a16dfdda4c",
-    "purpose": "Candidate independent ARM64 runtime core; not yet packaged or present in a V4 image"
+    "upstream_version": "alpha-ge183c58",
+    "purpose": "Prebuilt alpha trial for independent packaging only; stable source/license review and target runtime required before image inclusion or APK publication"
   },
   "feeds": [
     {"name": "packages", "repository": "https://github.com/openwrt/packages.git", "revision": "8f9ad5085e0e401e4327638a4e05258e1c5d4569"},

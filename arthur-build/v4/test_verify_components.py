@@ -104,7 +104,8 @@ class CoreOriginTest(unittest.TestCase):
             binary = root / "etc/openclash/core/clash_meta"
             binary.parent.mkdir(parents=True)
             arm64_elf = bytearray(64)
-            arm64_elf[:6] = b"\x7fELF\x02\x01"
+            arm64_elf[:7] = b"\x7fELF\x02\x01\x01"
+            arm64_elf[16:18] = b"\x02\x00"
             arm64_elf[18:20] = b"\xb7\x00"
             binary.write_bytes(arm64_elf)
             archive = pathlib.Path(temp) / "image.zip"

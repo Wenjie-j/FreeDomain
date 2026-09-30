@@ -21,6 +21,9 @@ on:
       - 'arthur-build/v4/validate_firewall4_test_package.py'
       - 'arthur-build/v4/report_firewall4_test_package.py'
       - 'arthur-build/v4/report_openclash_package.py'
+      - 'arthur-build/v4/prepare_openclash_core.py'
+      - 'arthur-build/v4/report_openclash_core_package.py'
+      - 'arthur-build/v4/package/arthur-openclash-core/**'
   workflow_dispatch:
 
 permissions:
@@ -82,6 +85,8 @@ jobs:
             --candidate "$GITHUB_WORKSPACE/arthur-build/v4/sing-box-firewall4.candidate"
           cp -a "$GITHUB_WORKSPACE/arthur-build/v4/package/arthur-singbox-firewall4-test" \
             package/arthur/
+          cp -a "$GITHUB_WORKSPACE/arthur-build/v4/package/arthur-openclash-core" \
+            package/arthur/
 
       - name: Verify Sing-box source and stage the reviewed recipe
         run: |
@@ -98,6 +103,20 @@ jobs:
           grep -q '/usr/bin/sing-box' openwrt/feeds/packages/net/sing-box/Makefile
           ! grep -q '/etc/init.d/sing-box' openwrt/feeds/packages/net/sing-box/Makefile
           ! grep -q '/etc/config/sing-box' openwrt/feeds/packages/net/sing-box/Makefile
+
+      - name: Verify pinned upstream ARM64 OpenClash core (no execution)
+        run: |
+          core_rev="$(jq -er '.openclash_core_source.revision' arthur-build/v4/feeds.lock.json)"
+          core_path="$(jq -er '.openclash_core_source.archive_path' arthur-build/v4/feeds.lock.json)"
+          [[ "$core_rev" == '6b99254c577e4e674887e93f42da89a03b5e9e44' ]]
+          [[ "$core_path" == 'master/meta/clash-linux-arm64.tar.gz' ]]
+          curl -fL --retry 2 -o "$RUNNER_TEMP/openclash-arm64.tar.gz" \
+            "https://raw.githubusercontent.com/vernesong/OpenClash/$core_rev/$core_path"
+          python3 arthur-build/v4/prepare_openclash_core.py \
+            --archive "$RUNNER_TEMP/openclash-arm64.tar.gz" \
+            --source-lock arthur-build/v4/feeds.lock.json \
+            --package-dir openwrt/package/arthur/arthur-openclash-core \
+            --trace v4-openclash-core-build-trace.json
 
       - name: Resolve candidate packages with make defconfig
         working-directory: openwrt
@@ -124,7 +143,8 @@ jobs:
           )
           config = set(Path('.config').read_text().splitlines())
           missing = [key for key in flags if f'CONFIG_{key}=y' not in config]
-          module_flags = ('PACKAGE_arthur-singbox-firewall4-test',)
+          module_flags = ('PACKAGE_arthur-singbox-firewall4-test',
+                          'PACKAGE_arthur-openclash-core')
           missing_modules = [key for key in module_flags
                              if f'CONFIG_{key}=m' not in config]
           forbidden = ('PACKAGE_iptables-zz-legacy', 'PACKAGE_ip6tables-zz-legacy')
@@ -218,6 +238,20 @@ jobs:
             --source-lock "$GITHUB_WORKSPACE/arthur-build/v4/feeds.lock.json" \
             --output-dir ..
 
+      - name: Package verified OpenClash ARM64 core (test APK outside image)
+        working-directory: openwrt
+        run: |
+          make -j2 package/arthur/arthur-openclash-core/compile V=s
+          core_apk="$(find bin/packages -name 'arthur-openclash-core-*.apk' -print -quit)"
+          core_root="$(find build_dir/target-* -type d \
+            -path '*/arthur-openclash-core-20260930/.pkgdir/arthur-openclash-core' -print -quit)"
+          test -n "$core_apk"
+          test -n "$core_root"
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_openclash_core_package.py" \
+            --package-root "$core_root" --apk "$core_apk" --config .config \
+            --owners ../v4-package-file-owners.partial.json \
+            --trace ../v4-openclash-core-build-trace.json --output-dir ..
+
       - name: Upload configuration report
         if: always()
         uses: actions/upload-artifact@v4
@@ -231,6 +265,8 @@ jobs:
             v4-firewall4-package-build.json
             v4-package-file-owners.partial.json
             v4-openclash-package-build.json
+            v4-openclash-core-build-trace.json
+            v4-openclash-core-package-build.json
             openwrt/bin/packages/**/sing-box-1.14.1-r1.apk
             openwrt/bin/packages/**/arthur-singbox-firewall4-test-*.apk
             openwrt/bin/packages/**/luci-app-openclash-*.apk

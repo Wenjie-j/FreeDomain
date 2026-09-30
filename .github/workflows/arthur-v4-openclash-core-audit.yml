@@ -1,0 +1,50 @@
+name: Arthur V4 pinned OpenClash core byte audit (no execution)
+
+on:
+  push:
+    branches:
+      - arthur-v4-cn-bypass-order
+      - arthur-v4-core-report
+    paths:
+      - '.github/workflows/arthur-v4-openclash-core-audit.yml'
+      - 'arthur-build/v4/feeds.lock.json'
+      - 'arthur-build/v4/prepare_openclash_core.py'
+      - 'arthur-build/v4/test_openclash_core_package.py'
+      - 'arthur-build/v4/report_openclash_core_package.py'
+      - 'arthur-build/v4/package/arthur-openclash-core/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  byte-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Synthetic safety tests
+        run: |
+          python3 -m unittest discover -s arthur-build/v4 -p 'test_openclash_core_package.py' -v
+          python3 -m unittest discover -s arthur-build/v4 -p 'test_verify_components.py' -v
+      - name: Verify locked archive and ARM64 bytes without executing them
+        run: |
+          core_rev="$(jq -er '.openclash_core_source.revision' arthur-build/v4/feeds.lock.json)"
+          core_path="$(jq -er '.openclash_core_source.archive_path' arthur-build/v4/feeds.lock.json)"
+          [[ "$core_rev" == '6b99254c577e4e674887e93f42da89a03b5e9e44' ]]
+          [[ "$core_path" == 'master/meta/clash-linux-arm64.tar.gz' ]]
+          curl -fL --max-time 120 --retry 1 -o "$RUNNER_TEMP/openclash-arm64.tar.gz" \
+            "https://raw.githubusercontent.com/vernesong/OpenClash/$core_rev/$core_path"
+          cp -a arthur-build/v4/package/arthur-openclash-core "$RUNNER_TEMP/core-package"
+          python3 arthur-build/v4/prepare_openclash_core.py \
+            --archive "$RUNNER_TEMP/openclash-arm64.tar.gz" \
+            --source-lock arthur-build/v4/feeds.lock.json \
+            --package-dir "$RUNNER_TEMP/core-package" \
+            --trace v4-openclash-core-archive-audit.json
+      - name: Upload metadata only (no binary or installable APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: arthur-v4-openclash-core-byte-audit-no-binary
+          path: v4-openclash-core-archive-audit.json
+          if-no-files-found: error
+          retention-days: 30

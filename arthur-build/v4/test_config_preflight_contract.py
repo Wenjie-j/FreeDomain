@@ -55,6 +55,15 @@ class ConfigPreflightContractTests(unittest.TestCase):
         self.assertIn("'PACKAGE_iptables-zz-legacy'", self.source)
         self.assertIn("selected_forbidden_legacy_firewall_packages", self.source)
 
+    def test_core_bytes_are_verified_before_module_packaging_not_published(self):
+        for token in ("prepare_openclash_core.py", "report_openclash_core_package.py",
+                      "package/arthur/arthur-openclash-core/compile",
+                      "'PACKAGE_arthur-openclash-core'",
+                      "v4-openclash-core-build-trace.json",
+                      "v4-openclash-core-package-build.json"):
+            self.assertIn(token, self.source)
+        self.assertNotIn("openwrt/bin/packages/**/arthur-openclash-core-*.apk", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

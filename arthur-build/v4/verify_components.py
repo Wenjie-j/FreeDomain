@@ -11,7 +11,8 @@ from pathlib import Path
 REQUIRED_PACKAGES = {
     "base": ("luci", "luci-i18n-base-zh-cn", "luci-compat", "firewall4"),
     "familiar_ui": ("luci-theme-argon",),
-    "proxy": ("sing-box", "kmod-tun", "kmod-nft-tproxy", "luci-app-openclash"),
+    "proxy": ("sing-box", "kmod-tun", "kmod-nft-tproxy", "luci-app-openclash",
+              "arthur-openclash-core"),
     "multi_wan": ("mwan3", "luci-app-mwan3"),
     "radio": ("kmod-ath11k", "wpad-mesh-openssl"),
     "nss": ("kmod-qca-nss-dp", "kmod-qca-nss-drv", "kmod-qca-nss-ecm",
@@ -165,8 +166,9 @@ def inspect(artifact: Path, root_dir: Path | None = None,
         binary = root_dir / "etc/openclash/core/clash_meta"
         if binary.is_file():
             data = binary.read_bytes()
-            if (len(data) >= 20 and data[:6] == b"\x7fELF\x02\x01"
+            if (len(data) >= 64 and data[:7] == b"\x7fELF\x02\x01\x01"
                     and data[18:20] == b"\xb7\x00"
+                    and int.from_bytes(data[16:18], "little") in (2, 3)
                     and openclash_core_build_report.get("source_repository")
                     == "https://github.com/vernesong/OpenClash.git"
                     and openclash_core_build_report.get("source_commit")
