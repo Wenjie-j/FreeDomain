@@ -16,7 +16,7 @@ upgrade_gate.py 只读取一份离线固件 sysupgrade tar 和固定的硬件清
 新增的设备树内存检查会阻断明写 512MiB 的 FIT。原机 p16 FIT 声明 512MiB，而运行时 FDT 为 1GiB；V3 FIT 没有显式内存节点，离线检查结果是 `BOOTLOADER_DEPENDENT_NO_MEMORY_NODE`，仍保持阻断。只有新内核实际启动后读取运行时 FDT，才能确认这次内存传递是否正常。
 它不连接用户路由器，不读写真实 GPT/HLOS/rootfs/U-Boot 环境；即使人为修改所有 inventory flags 为 true，脚本仍禁止自行批准刷机，直到另行实现并审核签名发布和受支持的恢复机制。
 
-用法：python3 arthur-upgrade/upgrade_gate.py --inventory arthur-upgrade/inventory-arthur-1gb-v3.json --sysupgrade /path/to/sysupgrade.bin --network-report /path/to/sanitized-network-report.json --output report.json
+用法：python3 arthur-upgrade/upgrade_gate.py --inventory arthur-upgrade/inventory-arthur-1gb-v3.json --sysupgrade /path/to/sysupgrade.bin --network-report /path/to/sanitized-network-report.json --proxy-migration-report /path/to/sanitized-proxy-report.json --output report.json
 
 V4 的 `arthur-build/v4/legacy_network_preflight.py` 可从离线旧 `uci show` 生成脱敏的网络报告；本门禁会把已知网络迁移阻断项合并进固件检查。缺少报告或报告格式异常也会阻断。它不会自动转换接口，更不会因为已有报告而批准刷写。
 

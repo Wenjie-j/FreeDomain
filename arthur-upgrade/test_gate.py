@@ -53,6 +53,27 @@ class PreflightTests(unittest.TestCase):
             report=evaluate(self.layout,self.image,invalid)
             self.assertIn('NETWORK_MIGRATION_REPORT_INVALID',report['blockers'])
             self.assertNotIn('secret',json.dumps(report))
+    def test_proxy_migration_report_is_allowlisted_and_redacted(self):
+        proxy={'classification':'PRIVATE_PROXY_INVENTORY_NOT_RESTORE_OR_FLASH_APPROVAL',
+               'decision':'BLOCKED_FIRST_MIGRATION',
+               'secret_values_emitted':False,
+               'blockers':['PROXY_BACKEND_SELECTION_REQUIRES_EXPLICIT_CHOICE'],
+               'inventory':{'node':'DO_NOT_COPY'}}
+        report=evaluate(self.layout,self.image,proxy_migration_report=proxy)
+        self.assertIn(
+            'PROXY_PROXY_BACKEND_SELECTION_REQUIRES_EXPLICIT_CHOICE',
+            report['blockers'])
+        self.assertNotIn('DO_NOT_COPY',json.dumps(report))
+    def test_missing_or_spoofed_proxy_report_fails_closed(self):
+        self.assertIn('PROXY_MIGRATION_REPORT_MISSING',
+                      evaluate(self.layout,self.image)['blockers'])
+        invalid={'classification':'PRIVATE_PROXY_INVENTORY_NOT_RESTORE_OR_FLASH_APPROVAL',
+                 'decision':'BLOCKED_FIRST_MIGRATION',
+                 'secret_values_emitted':False,
+                 'blockers':['subscription=https://secret']}
+        report=evaluate(self.layout,self.image,proxy_migration_report=invalid)
+        self.assertIn('PROXY_MIGRATION_REPORT_INVALID',report['blockers'])
+        self.assertNotIn('secret',json.dumps(report))
     def test_recovery_evidence_is_merged_without_copying_private_fields(self):
         hlos={'classification':'READ_ONLY_RECOVERY_EVIDENCE_NOT_FLASH_APPROVAL',
               'decision':'BLOCKED_WRITE','write_approved':False,

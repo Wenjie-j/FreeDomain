@@ -17,6 +17,12 @@ NETWORK_BLOCKERS = frozenset((
     'LAN_OR_WAN_INTERFACE_MISSING',
     'MANAGEMENT_ADDRESS_REQUIRES_EXPLICIT_MIGRATION',
 ))
+PROXY_MIGRATION_BLOCKERS = frozenset((
+    'SINGBOX_SCHEMA_CONVERTER_NOT_RUNTIME_TESTED',
+    'OPENCLASH_CROSS_VERSION_RESTORE_NOT_RUNTIME_TESTED',
+    'PROXY_BACKEND_SELECTION_REQUIRES_EXPLICIT_CHOICE',
+    'SINGBOX_DATA_FILES_MISSING',
+))
 HLOS_RECOVERY_BLOCKERS = frozenset((
     'HLOS_NO_VERIFIED_FIT_AT_OFFSET_ZERO',
     'HLOS_1_NO_VERIFIED_FIT_AT_OFFSET_ZERO',
@@ -101,7 +107,8 @@ def _merge_evidence(reasons: list, report: dict | None, *, classification: str,
 def evaluate(layout: dict, image: dict, network_report: dict | None = None,
              hlos_recovery_report: dict | None = None,
              gpt_recovery_report: dict | None = None,
-             boot_slot_report: dict | None = None) -> dict:
+             boot_slot_report: dict | None = None,
+             proxy_migration_report: dict | None = None) -> dict:
     reasons=[]
     required_fields=('model','physical_ram_mib','hlos_bytes','rootfs_bytes',
        'has_rootfs_1','backup_hlos_boot_tested','backup_gpt_valid',
@@ -146,6 +153,21 @@ def evaluate(layout: dict, image: dict, network_report: dict | None = None,
         reasons.append('NETWORK_MIGRATION_REPORT_INVALID')
     else:
         reasons.extend('NETWORK_' + code for code in sorted(set(network_report['blockers'])))
+    if proxy_migration_report is None:
+        reasons.append('PROXY_MIGRATION_REPORT_MISSING')
+    elif (not isinstance(proxy_migration_report, dict)
+          or proxy_migration_report.get('classification') !=
+             'PRIVATE_PROXY_INVENTORY_NOT_RESTORE_OR_FLASH_APPROVAL'
+          or proxy_migration_report.get('decision') != 'BLOCKED_FIRST_MIGRATION'
+          or proxy_migration_report.get('secret_values_emitted') is not False
+          or not isinstance(proxy_migration_report.get('blockers'), list)
+          or not proxy_migration_report['blockers']
+          or any(not isinstance(code, str) or code not in PROXY_MIGRATION_BLOCKERS
+                 for code in proxy_migration_report['blockers'])):
+        reasons.append('PROXY_MIGRATION_REPORT_INVALID')
+    else:
+        reasons.extend('PROXY_' + code
+                       for code in sorted(set(proxy_migration_report['blockers'])))
     _merge_evidence(
         reasons, hlos_recovery_report,
         classification='READ_ONLY_RECOVERY_EVIDENCE_NOT_FLASH_APPROVAL',
@@ -171,6 +193,8 @@ def main(argv=None):
     p.add_argument('--output',type=Path)
     p.add_argument('--network-report',type=Path,
                    help='Sanitized, read-only legacy network preflight JSON')
+    p.add_argument('--proxy-migration-report',type=Path,
+                   help='Sanitized output from proxy_migration_preflight.py')
     p.add_argument('--hlos-recovery-report',type=Path,
                    help='Read-only output from hlos_recovery_audit.py')
     p.add_argument('--gpt-recovery-report',type=Path,
@@ -186,8 +210,10 @@ def main(argv=None):
              if args.gpt_recovery_report else None)
         boot_slot=(json.loads(args.boot_slot_report.read_text())
                    if args.boot_slot_report else None)
+        proxy=(json.loads(args.proxy_migration_report.read_text())
+               if args.proxy_migration_report else None)
         doc=evaluate(json.loads(args.inventory.read_text()),inspect_image(args.sysupgrade),
-                     network,hlos,gpt,boot_slot)
+                     network,hlos,gpt,boot_slot,proxy)
     except (OSError, ValueError, TypeError, tarfile.TarError, KeyError) as exc:
         print('FAIL: '+str(exc),file=sys.stderr)
         return 3
