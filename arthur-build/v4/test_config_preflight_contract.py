@@ -40,7 +40,9 @@ class ConfigPreflightContractTests(unittest.TestCase):
                          "c3a33c1d3407956fdf8f0e0b7c1a4c52e6ad9593")
         self.assertIn("git -C \"$RUNNER_TEMP/OpenClash\" checkout \"$openclash_rev\"", self.source)
         self.assertIn("package/arthur/luci-app-openclash/compile", self.source)
-        self.assertIn("v4-openclash-package.sha256", self.source)
+        self.assertIn("report_openclash_package.py", self.source)
+        self.assertIn("v4-openclash-package-build.json", self.source)
+        self.assertIn("--owners ../v4-package-file-owners.partial.json", self.source)
 
 
 if __name__ == "__main__":

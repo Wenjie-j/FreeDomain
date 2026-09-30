@@ -20,6 +20,7 @@ on:
       - 'arthur-build/v4/sing-box-firewall4.candidate'
       - 'arthur-build/v4/validate_firewall4_test_package.py'
       - 'arthur-build/v4/report_firewall4_test_package.py'
+      - 'arthur-build/v4/report_openclash_package.py'
   workflow_dispatch:
 
 permissions:
@@ -192,8 +193,17 @@ jobs:
         run: |
           make -j2 package/arthur/luci-app-openclash/compile V=s
           openclash_apk="$(find bin/packages -name 'luci-app-openclash-*.apk' -print -quit)"
+          openclash_root="$(find build_dir/target-* -type d \
+            -path '*/luci-app-openclash/.pkgdir/luci-app-openclash' -print -quit)"
           test -n "$openclash_apk"
-          sha256sum "$openclash_apk" > ../v4-openclash-package.sha256
+          test -n "$openclash_root"
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_openclash_package.py" \
+            --package-root "$openclash_root" \
+            --apk "$openclash_apk" \
+            --config .config \
+            --owners ../v4-package-file-owners.partial.json \
+            --source-lock "$GITHUB_WORKSPACE/arthur-build/v4/feeds.lock.json" \
+            --output-dir ..
 
       - name: Upload configuration report
         if: always()
@@ -207,7 +217,7 @@ jobs:
             v4-core-file-owners.json
             v4-firewall4-package-build.json
             v4-package-file-owners.partial.json
-            v4-openclash-package.sha256
+            v4-openclash-package-build.json
             openwrt/bin/packages/**/sing-box-1.14.1-r1.apk
             openwrt/bin/packages/**/arthur-singbox-firewall4-test-*.apk
             openwrt/bin/packages/**/luci-app-openclash-*.apk
