@@ -429,7 +429,7 @@ staged-package checks. The actual uploaded APK digests also match the reports:
 | OpenClash LuCI 0.47.156 | `92f436d500f6a4a25070b7e0c8edefdfebf151baa09936849c44d5ce969bc0cf` |
 
 The OpenClash core APK was checked in CI but not uploaded. The overview package
-step was added after this run's commit, so this success does not cover it.
+step was added after this run's commit, so this earlier success does not cover it.
 No final V4 root filesystem, custom UI integration or hardware test was produced.
 
 The first overview preflight run `36718457124` blocked at `make defconfig`:
@@ -439,9 +439,35 @@ valid package but `tmp/.packageinfo` and generated Kconfig had no entry.
 The pinned buildroot's `include/scan.mk` first selects Makefiles containing
 `call BuildPackage`, including a comment convention in its LuCI feed. The
 external overview Makefile only included `luci.mk`; it did not carry that
-scanner marker. Its Makefile now includes the marker, so the next cloud
-`make defconfig` can verify that package discovery actually works. This is a
-candidate fix, pending the next CI result.
+scanner marker. Its Makefile now includes the marker. Run `36720153373` at
+`a9798756` confirmed discovery and all 24 configuration flags, then built
+Sing-box 1.14.1, the non-activating firewall4 test package, OpenClash LuCI,
+the stable OpenClash core package, and the read-only Arthur overview. Its
+QEMU smoke check passed the compiled Sing-box version, required feature tags,
+minimal configuration and rejection of invalid configuration. The artifact
+ZIP SHA-256 is
+`1554d5f453412585be098ab77b92c6c07963a562f70dea95af071763fa460b16`.
+After downloading it, the four uploaded APK digests matched their individual
+build reports:
+
+| APK | SHA-256 |
+| --- | --- |
+| Sing-box 1.14.1 | `cb781de288aa84662b486f2081ec8431abc1661ca6c33490d171c13a1c210c1b` |
+| Firewall4 test | `717a4e9e2ba6bf0fa443913970bb4d0eab799545d15946d0e1b93b0d29c7c6eb` |
+| OpenClash LuCI 0.47.156 | `9cc626f5bc4565c650f99746bac81305e8b891ba4471c566383229821b65da94` |
+| Arthur overview 0.1 | `6c392a8326f9e2759e51da33473acb07b8ee180db898bc2275855199ae310b7f` |
+
+The package reports inspect staged files; they do not independently extract
+every APK. The OpenClash core APK was checked in CI but not uploaded. This run
+did not make a firmware image or test LuCI, real traffic, boot or recovery on
+the Arthur. The later endpoint-bypass ordering change at `c0c054b` is on the
+candidate branch and was not in this long build.
+
+The next overview trial extracts the actual APK with the pinned build's host
+`apk` into a temporary directory. Its report then rejects missing, additional,
+symlinked or byte-different page/menu/ACL files against the staged payload.
+That stronger check has local failure-case tests, but the new cloud extraction
+step has not yet completed; the successful report above correctly says false.
 
 The next package run also invokes `smoke_singbox_core.py` on the newly built
 ARM64 core under QEMU with that build's musl toolchain sysroot. Before execution
@@ -450,8 +476,8 @@ actual compiled feature tags, a direct-only configuration with no inbounds and
 rejection of an invalid outbound. It uses only `version` and `check`, with
 timeouts; it never issues `run` or loads the user's configuration. The loader's
 digest is recorded and a loader resolving outside the supplied sysroot blocks.
-This is prepared for CI; passing local mocked tests does not establish actual
-emulated execution, real traffic or compatibility with the Arthur kernel.
+The QEMU check passed in run `36720153373`; emulated version/configuration
+checks do not establish real traffic or compatibility with the Arthur kernel.
 CLI references at the pinned source revision:
 - https://github.com/SagerNet/sing-box/blob/1ac1a339cb1223e9c70eae14c44411c75033c02d/cmd/sing-box/cmd_version.go
 - https://github.com/SagerNet/sing-box/blob/1ac1a339cb1223e9c70eae14c44411c75033c02d/cmd/sing-box/cmd_check.go
@@ -464,8 +490,9 @@ only that executable without running it. No tar paths are extracted.
 `report_openclash_core_package.py` checks that the package owns exactly
 `/etc/openclash/core/clash_meta`, collides with no existing package, and matches
 the preparation trace. It installs no service or configuration.
-It remains selected as `m`, outside the image, pending actual cloud package
-compilation, target integration and runtime review. The workflow uploads
+It remains selected as `m`, outside the image; cloud package compilation passed
+in run `36720153373`, while target integration and runtime review are pending.
+The workflow uploads
 trace/audit reports only, not this core APK. The upstream tag's source revision
 and its GPLv3 license file have been checked; this is not an independent
 reproduction of the release build or a source distribution approval.
@@ -493,8 +520,9 @@ Run `36696409393` at commit `569db9dc` passed the official stable gzip's
 SHA-256 and ARM64 checks, then both QEMU version and minimal-configuration
 checks. Its 57,278,590-byte binary has SHA-256
 `1b315bc038d05f84ee86d232f3c3d2b020b5044e9b971bb8fe215b6e6a2148f3`.
-The test did not start a proxy service or test Arthur. APK compilation and
-Arthur runtime validation are still pending; no core binary/APK was uploaded.
+The test did not start a proxy service or test Arthur. APK compilation
+subsequently passed in run `36720153373`; Arthur runtime validation is still
+pending, and no core binary/APK was uploaded.
 
 The pinned mwan3 2.12.2 package still invokes iptables and declares the
 `iptables`/`ip6tables` virtual dependencies. The candidate therefore selects

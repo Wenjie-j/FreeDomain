@@ -91,6 +91,25 @@ class OverviewPayloadTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "collision"):
             self.check()
 
+    def test_independently_extracted_payload_must_match_staged_files(self):
+        extracted = self.base / "extracted"
+        shutil.copytree(self.root, extracted)
+        report, _ = audit.build_report(self.root, self.apk, self.config,
+                                       self.source, self.owners, extracted)
+        self.assertTrue(report["apk_payload_independently_extracted"])
+        view = extracted / next(iter(audit.FILES))
+        view.write_bytes(view.read_bytes() + b"\n// unexpected APK bytes\n")
+        with self.assertRaisesRegex(ValueError, "extracted APK differs"):
+            audit.build_report(self.root, self.apk, self.config,
+                               self.source, self.owners, extracted)
+        view.write_bytes((self.root / next(iter(audit.FILES))).read_bytes())
+        injected = extracted / "etc/init.d/extra"
+        injected.parent.mkdir(parents=True)
+        injected.write_text("unexpected")
+        with self.assertRaisesRegex(ValueError, "unexpected files"):
+            audit.build_report(self.root, self.apk, self.config,
+                               self.source, self.owners, extracted)
+
     def test_image_selection_missing_archive_and_symlink_archive_block(self):
         self.config.write_text("CONFIG_PACKAGE_luci-app-arthur-overview=y\n")
         with self.assertRaisesRegex(ValueError, "outside the image"):

@@ -306,8 +306,13 @@ jobs:
           test -n "$overview_apk"
           test -n "$overview_root"
           node --check "$overview_root/www/luci-static/resources/view/arthur/overview.js"
+          overview_extracted="$RUNNER_TEMP/arthur-overview-apk-extracted"
+          mkdir -p "$overview_extracted"
+          staging_dir/host/bin/apk extract --allow-untrusted --no-chown \
+            --destination "$overview_extracted" "$overview_apk"
           python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_overview_package.py" \
             --package-root "$overview_root" --apk "$overview_apk" --config .config \
+            --apk-extracted-root "$overview_extracted" \
             --source "$GITHUB_WORKSPACE/arthur-build/v4/luci-app-arthur-overview" \
             --owners ../v4-package-file-owners.partial.json --output-dir ..
 
@@ -338,4 +343,3 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
-

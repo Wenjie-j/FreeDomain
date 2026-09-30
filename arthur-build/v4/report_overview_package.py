@@ -23,7 +23,7 @@ READ_UBUS = {
 
 
 def build_report(root: Path, apk: Path, config: Path, source: Path,
-                 owners: dict) -> tuple[dict, dict]:
+                 owners: dict, extracted: Path | None = None) -> tuple[dict, dict]:
     if root.is_symlink() or not root.is_dir():
         raise ValueError("missing or symlinked overview payload root")
     paths = list(root.rglob("*"))
@@ -56,6 +56,18 @@ def build_report(root: Path, apk: Path, config: Path, source: Path,
     if (apk.is_symlink() or not apk.is_file()
             or apk.name != f"{PACKAGE}-0.1-r1.apk" or not apk.stat().st_size):
         raise ValueError("expected overview APK missing")
+    if extracted is not None:
+        if extracted.is_symlink() or not extracted.is_dir():
+            raise ValueError("missing or symlinked extracted APK root")
+        extracted_paths = list(extracted.rglob("*"))
+        extracted_files = sorted(p.relative_to(extracted).as_posix()
+                                 for p in extracted_paths if p.is_file())
+        if (extracted_files != files
+                or any(p.is_symlink() for p in extracted_paths)):
+            raise ValueError("unexpected files in extracted overview APK")
+        for installed in files:
+            if (extracted / installed).read_bytes() != (root / installed).read_bytes():
+                raise ValueError("extracted APK differs from staged overview")
     report = {
         "classification": "STAGED_LUCI_PAYLOAD_CHECK_NOT_IMAGE_OR_RUNTIME_APPROVAL",
         "package": PACKAGE,
@@ -64,7 +76,7 @@ def build_report(root: Path, apk: Path, config: Path, source: Path,
         "staged_package_files": files,
         "ubus_read_methods": READ_UBUS,
         "status": "READ_ONLY_STAGED_PAYLOAD_VERIFIED",
-        "apk_payload_independently_extracted": False,
+        "apk_payload_independently_extracted": extracted is not None,
         "luci_runtime_verified": False,
         "firmware_inclusion_approved": False,
     }
@@ -77,9 +89,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("package-root", "apk", "config", "source", "owners", "output-dir"):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--apk-extracted-root", type=Path)
     args = parser.parse_args()
     report, owners = build_report(args.package_root, args.apk, args.config, args.source,
-                                 json.loads(args.owners.read_text()))
+                                 json.loads(args.owners.read_text()), args.apk_extracted_root)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "v4-overview-package-build.json").write_text(json.dumps(report, indent=2) + "\n")
     (args.output_dir / "v4-package-file-owners.partial.json").write_text(json.dumps(owners, indent=2) + "\n")
