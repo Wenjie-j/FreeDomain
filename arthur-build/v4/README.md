@@ -1,5 +1,17 @@
 # V4 backend integration staging
 
+The `arthur-v4-image-inventory` branch extends the pinned package sequence to
+assemble a diagnostic image. It keeps the three trial packages at `m`, excludes
+the private Sing-box UI, and uploads only image metadata alongside the existing
+package reports. No firmware bytes are uploaded or released by this branch.
+`report_diagnostic_image.py` checks the actual sysupgrade FIT/rootfs with the
+inherited offline upgrade gate and checks the actual manifest and assembled
+`build_dir/target-*/root-qualcommax` tree with the V4 component gate. It never
+uses the package staging sysroot as a substitute for an assembled image.
+An incomplete component report is expected at this stage; a successful build
+does not make that report pass, and the upgrade decision remains blocked.
+The first cloud diagnostic image build is pending.
+
 This branch combines the V3 6.12/NSS build workflow with the two previously
 separate read-only OTA gates. The V4 component gate checks the *actual image
 manifest* and staged root filesystem before any candidate is described as

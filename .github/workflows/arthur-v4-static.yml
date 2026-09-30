@@ -6,6 +6,7 @@ on:
       - arthur-v4-backend-integration
       - arthur-v4-core-report
       - arthur-v4-cn-bypass-order
+      - arthur-v4-image-inventory
     paths:
       - '.github/workflows/arthur-v4-static.yml'
       - 'arthur-build/v4/**'

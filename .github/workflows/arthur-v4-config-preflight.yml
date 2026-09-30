@@ -1,10 +1,11 @@
-name: Arthur V4 pinned config preflight (no image)
+name: Arthur V4 pinned package and diagnostic build checks
 
 on:
   push:
     branches:
       - arthur-v4-backend-integration
       - arthur-v4-core-report
+      - arthur-v4-image-inventory
     paths:
       - '.github/workflows/arthur-v4-config-preflight.yml'
       - 'arthur-build/v4/candidate.config.fragment'
@@ -28,6 +29,7 @@ on:
       - 'arthur-build/v4/package/arthur-openclash-core/**'
       - 'arthur-build/v4/luci-app-arthur-overview/**'
       - 'arthur-build/v4/report_overview_package.py'
+      - 'arthur-build/v4/report_diagnostic_image.py'
   workflow_dispatch:
 
 permissions:
@@ -315,6 +317,37 @@ jobs:
             --apk-extracted-root "$overview_extracted" \
             --source "$GITHUB_WORKSPACE/arthur-build/v4/luci-app-arthur-overview" \
             --owners ../v4-package-file-owners.partial.json --output-dir ..
+
+      - name: Assemble diagnostic V4 image (not a release)
+        if: github.ref_name == 'arthur-v4-image-inventory'
+        working-directory: openwrt
+        run: |
+          make download -j2 V=s
+          make -j2 V=s || make -j1 V=s
+
+      - name: Inspect actual image size and assembled component inventory
+        if: github.ref_name == 'arthur-v4-image-inventory'
+        working-directory: openwrt
+        run: |
+          roots=(build_dir/target-*/root-qualcommax)
+          test "${#roots[@]}" -eq 1
+          test -d "${roots[0]}"
+          python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_diagnostic_image.py" \
+            --target-dir bin/targets/qualcommax/ipq60xx --config .config \
+            --root-dir "${roots[0]}" --core-trace ../v4-core-build-trace.json \
+            --owners ../v4-package-file-owners.partial.json \
+            --openclash-trace ../v4-openclash-core-build-trace.json \
+            --inventory "$GITHUB_WORKSPACE/arthur-upgrade/inventory-arthur-1gb-v3.json" \
+            --output ../v4-diagnostic-image-inventory.json
+
+      - name: Upload diagnostic image metadata only
+        if: always() && github.ref_name == 'arthur-v4-image-inventory'
+        uses: actions/upload-artifact@v4
+        with:
+          name: arthur-v4-diagnostic-image-metadata-only
+          path: v4-diagnostic-image-inventory.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload configuration report
         if: always()
