@@ -56,6 +56,22 @@ class Firewall4DraftTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             firewall.render(json.dumps({"rules": [{"ip_cidr": ["garbage"]}]}), "br-lan", "8.8.8.8")
 
+    def test_multiple_node_endpoints_are_deduplicated_sorted_and_before_cn_in_both_chains(self):
+        output = firewall.render(self.geoip(), "br-lan", ["8.8.8.8", "1.1.1.1", "8.8.8.8"])
+        for name in ("arthur_singbox_udp", "arthur_singbox_tcp_dns"):
+            chain = output.split("chain " + name + " {", 1)[1].split("\n}", 1)[0]
+            self.assertEqual(chain.count("ip daddr 1.1.1.1 return"), 1)
+            self.assertEqual(chain.count("ip daddr 8.8.8.8 return"), 1)
+            self.assertLess(chain.index("ip daddr 1.1.1.1 return"),
+                            chain.index("ip daddr 8.8.8.8 return"))
+            self.assertLess(chain.index("ip daddr 8.8.8.8 return"),
+                            chain.index("ip daddr @arthur_cn4 return"))
+        for invalid in ([], ["node.example"], ["8.8.8.8", "192.168.1.1"],
+                        ["8.8.8.8"] * 1025, [134744072]):
+            with self.subTest(invalid_type=type(invalid).__name__):
+                with self.assertRaises(ValueError):
+                    firewall.render(self.geoip(), "br-lan", invalid)
+
 
 class DnsIncludeTest(unittest.TestCase):
     def test_requires_generated_config_to_include_exact_runtime_file(self):

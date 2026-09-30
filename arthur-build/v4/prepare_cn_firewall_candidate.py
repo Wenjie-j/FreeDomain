@@ -13,13 +13,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from render_firewall4_draft import extract_cn4, render
+from render_firewall4_draft import extract_cn4, normalize_endpoints, render
 
 
 def prepare(binary: Path, srs: Path, lan_iface: str,
-            proxy_endpoint_ipv4: str, output: Path):
+            proxy_endpoint_ipv4: str | list[str], output: Path):
     if output.exists():
         raise ValueError("refusing to replace existing candidate")
+    endpoints = normalize_endpoints(proxy_endpoint_ipv4)
     raw_srs = srs.read_bytes()
     if not 100 <= len(raw_srs) <= 16 * 1024 * 1024:
         raise ValueError("unexpected CN rule-set size")
@@ -55,6 +56,7 @@ def prepare(binary: Path, srs: Path, lan_iface: str,
         "source_srs_sha256": hashlib.sha256(raw_srs).hexdigest(),
         "candidate_nft_sha256": hashlib.sha256(draft.encode()).hexdigest(),
         "cn_ipv4_cidr_count": count,
+        "proxy_endpoint_ipv4_count": len(endpoints),
         "status": "OFFLINE_DRAFT_REQUIRES_FW4_AND_HARDWARE_TEST",
     }
 
@@ -64,8 +66,8 @@ def main():
     parser.add_argument("--sing-box", type=Path, required=True)
     parser.add_argument("--geoip-cn-srs", type=Path, required=True)
     parser.add_argument("--lan-iface", required=True)
-    parser.add_argument("--proxy-endpoint-ipv4", required=True,
-                        help="Private local input; never commit the generated draft")
+    parser.add_argument("--proxy-endpoint-ipv4", required=True, action="append",
+                        help="Repeat for all node endpoint IPv4s; keep generated draft private")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     print(json.dumps(prepare(args.sing_box, args.geoip_cn_srs,

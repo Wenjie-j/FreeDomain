@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - arthur-v4-core-report
+      - arthur-v4-cn-bypass-order
     paths:
       - '.github/workflows/arthur-v4-nft-syntax.yml'
       - 'arthur-build/v4/render_firewall4_draft.py'
@@ -32,7 +33,7 @@ jobs:
           cidrs = [f'11.{n // 65536}.{n // 256 % 256}.{n % 256}/32'
                    for n in range(5000)]
           rules = json.dumps({'rules': [{'ip_cidr': cidrs}]})
-          draft = render(rules, 'br-lan', '8.8.8.8')
+          draft = render(rules, 'br-lan', ['8.8.8.8', '1.1.1.1'])
           Path('/tmp/arthur-v4-synthetic.nft').write_text(
               'table inet fw4 {\n' + draft + '\n}\n')
           PY

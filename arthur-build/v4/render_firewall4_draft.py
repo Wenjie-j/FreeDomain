@@ -41,15 +41,26 @@ def extract_cn4(raw):
     return sorted(networks, key=lambda net: (int(net.network_address), net.prefixlen))
 
 
+def normalize_endpoints(values):
+    if isinstance(values, str):
+        values = [values]
+    if (not isinstance(values, (list, tuple)) or not 1 <= len(values) <= 1024
+            or any(not isinstance(value, str) for value in values)):
+        raise ValueError("explicit proxy endpoint IPv4 list is required")
+    try:
+        endpoints = sorted({ipaddress.IPv4Address(value) for value in values}, key=int)
+    except (ipaddress.AddressValueError, TypeError):
+        raise ValueError("explicit proxy endpoint IPv4 is required") from None
+    if any(not endpoint.is_global for endpoint in endpoints):
+        raise ValueError("proxy endpoint must be a public IPv4 address")
+    return endpoints
+
+
 def render(raw, lan_iface, proxy_endpoint_ipv4):
     if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,15}", lan_iface):
         raise ValueError("unsafe LAN interface name")
-    try:
-        endpoint = ipaddress.IPv4Address(proxy_endpoint_ipv4)
-    except (ipaddress.AddressValueError, TypeError):
-        raise ValueError("explicit proxy endpoint IPv4 is required") from None
-    if not endpoint.is_global:
-        raise ValueError("proxy endpoint must be a public IPv4 address")
+    endpoints = normalize_endpoints(proxy_endpoint_ipv4)
+    endpoint_bypass = "\n    ".join(f"ip daddr {endpoint} return" for endpoint in endpoints)
     cidrs = extract_cn4(raw)
     cn = ",\n        ".join(map(str, cidrs))
     bypass = ", ".join(BYPASS)
@@ -72,7 +83,7 @@ chain arthur_singbox_udp {{
     meta l4proto != udp return
     udp dport 53 return
     ip daddr {{ {bypass} }} return
-    ip daddr {endpoint} return
+    {endpoint_bypass}
     ip daddr @arthur_cn4 return
     # Preserve marks outside our 0xff mask, including mwan3's usual high bits.
     meta l4proto udp tproxy ip to :7895 meta mark set mark and 0xffffff00 xor 0x66 accept
@@ -85,7 +96,7 @@ chain arthur_singbox_tcp_dns {{
     udp dport 53 redirect to :53
     tcp dport 53 redirect to :53
     ip daddr {{ {bypass} }} return
-    ip daddr {endpoint} return
+    {endpoint_bypass}
     ip daddr @arthur_cn4 return
     meta l4proto tcp redirect to :7892
 }}
@@ -103,8 +114,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--geoip-cn", type=Path, required=True)
     parser.add_argument("--lan-iface", required=True)
-    parser.add_argument("--proxy-endpoint-ipv4", required=True,
-                        help="Private local input; never commit the generated draft")
+    parser.add_argument("--proxy-endpoint-ipv4", required=True, action="append",
+                        help="Repeat for all node endpoint IPv4s; keep generated draft private")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():

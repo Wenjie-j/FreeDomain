@@ -201,6 +201,23 @@ esac
                 self.assertFalse((self.runtime / "rule").exists())
                 self.assertFalse((self.runtime / "route").exists())
 
+    def test_multiple_endpoints_must_match_between_chains_without_duplicates(self):
+        first = " ip daddr 203.0.113.7 return\n"
+        second = " ip daddr 203.0.113.8 return\n"
+        valid = self.candidate.read_text().replace(first, first + second)
+        self.candidate.write_text(valid)
+        self.assertEqual(self.call("start").returncode, 0)
+        self.assertEqual(self.call("stop").returncode, 0)
+        for invalid in (valid.replace(second, "", 1),
+                        valid.replace(second, second * 2, 1),
+                        valid.replace(second, " ip daddr 203.0.113.9 return\n", 1)):
+            with self.subTest(endpoint_lines=invalid.count("203.0.113.8")):
+                self.candidate.write_text(invalid)
+                self.assertNotEqual(self.call("start").returncode, 0)
+                self.assertFalse(self.include.exists())
+                self.assertFalse((self.runtime / "rule").exists())
+                self.assertFalse((self.runtime / "route").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

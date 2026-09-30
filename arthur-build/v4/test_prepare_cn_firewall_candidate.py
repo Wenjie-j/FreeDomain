@@ -31,11 +31,15 @@ class SameSourceCnRules(unittest.TestCase):
                 pathlib.Path(command[4]).write_text(json.dumps({"rules": [{"ip_cidr": cidrs}]}))
 
             with patch.object(module.subprocess, "run", side_effect=fake_decompile):
-                report = module.prepare(root / "sing-box", srs, "br-lan", "8.8.8.8", output)
+                report = module.prepare(root / "sing-box", srs, "br-lan",
+                                        ["8.8.8.8", "1.1.1.1"], output)
                 self.assertEqual(report["source_srs_sha256"], hashlib.sha256(srs.read_bytes()).hexdigest())
                 self.assertEqual(report["cn_ipv4_cidr_count"], 5000)
+                self.assertEqual(report["proxy_endpoint_ipv4_count"], 2)
+                self.assertNotIn("1.1.1.1", json.dumps(report))
                 self.assertIn("@arthur_cn4", output.read_text())
                 self.assertIn("ip daddr 8.8.8.8 return", output.read_text())
+                self.assertEqual(output.read_text().count("ip daddr 1.1.1.1 return"), 2)
                 with self.assertRaises(ValueError):
                     module.prepare(root / "sing-box", srs, "br-lan", "8.8.8.8", output)
 

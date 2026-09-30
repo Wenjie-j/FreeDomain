@@ -170,10 +170,15 @@ state and actual target health checks.
 renders a partial nftables file for inclusion *inside* `table inet fw4`, using
 the old IPv4 bypass ranges, a validated CN CIDR set, TCP redirect, UDP TPROXY,
 LAN DNS redirect and the old LAN IPv6 forward block. It requires a separately
-provided LAN device, the active proxy endpoint IPv4 and at least 5000 valid CN
-IPv4 networks. The endpoint is an explicit private local input, kept ahead of
-the CN set in both bypass paths; no endpoint is embedded in repository source.
-The generated draft is private and must track endpoint changes. Do not put it in
+provided LAN device, explicit proxy endpoint IPv4 addresses and at least 5000
+valid CN IPv4 networks. Repeat `--proxy-endpoint-ipv4` for multiple nodes. The
+renderer validates up to 1024 inputs, deduplicates and sorts them, and keeps
+every endpoint ahead of the CN set in both bypass paths; no endpoint is embedded
+in repository source. The target candidate requires identical, unique endpoint
+sets in both chains with the same ordering constraints. Address discovery from
+the private node database and refresh of domain-based endpoints are not yet
+connected to the UI. The generated draft is private and must track endpoint
+changes. Do not put it in
 `/etc/nftables.d/`: target `fw4 check`, policy routing mark/table allocation,
 mwan3 mark overlap, NSS acceleration, service reload and real traffic tests
 have not been done. This is not yet `/usr/bin/sing-box-firewall4` and cannot
