@@ -121,6 +121,14 @@ The second command creates a local OpenWrt package from only the six reviewed
 source/service paths. It excludes `/etc/config`, nodes, subscriptions, rules
 and generated firewall data, and does not publish or add the private package
 to CI. The package remains test-only until its services pass on the V4 target.
+The staging manifest now records each transformed file's SHA-256. Packaging
+requires every port flag and all six digests, rejects symlinked inputs and
+modified files, and validates all sources before writing package output.
+Older staging trees must be regenerated. The actual September 29 UI and service
+exports were regenerated and packaged locally with all six digests checked.
+Their three Lua source files passed the host Lua 5.4 parser and both service
+scripts passed host shell syntax checks without executing the code. Those
+syntax checks do not establish target Lua compatibility or live service behavior.
 
 The active page's JavaScript already uses POST for mutations and GET for the
 list, so the method restriction preserves its existing interaction. Before

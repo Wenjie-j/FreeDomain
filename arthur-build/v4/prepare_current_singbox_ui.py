@@ -6,6 +6,7 @@ not an OpenWrt package or a flashable integration.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -302,9 +303,14 @@ def stage(archive_path, destination, services_archive=None):
         target.chmod(0o600)
     (destination / "OFFLINE-ONLY.json").write_text(
         json.dumps({
+            "classification": "PRIVATE_OFFLINE_UI_SOURCE_NOT_INSTALL_APPROVAL",
             "archive_sha256": report["archive_sha256"],
             "services_archive_sha256": report["services_archive_sha256"],
             "staged_paths": list(staged),
+            "staged_file_sha256": {
+                name: hashlib.sha256(content).hexdigest()
+                for name, content in staged.items()
+            },
             "excluded_runtime_paths": [
                 "usr/bin/sing-box-firewall",
                 "usr/bin/sing-box-update-rules",
