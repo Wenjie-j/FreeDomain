@@ -71,11 +71,7 @@ def domain_name(value: str) -> str:
     return name
 
 
-def collect(raw_config: bytes, raw_snapshot: bytes | None = None,
-            now: int | None = None) -> tuple[list[str], dict]:
-    now = int(time.time()) if now is None else now
-    if type(now) is not int or now < 0:
-        raise ValueError("invalid verification time")
+def config_servers(raw_config: bytes) -> tuple[list[str], set[str], int]:
     config = strict_json(raw_config)
     if not isinstance(config, dict):
         raise ValueError("expected Sing-box configuration object")
@@ -115,6 +111,15 @@ def collect(raw_config: bytes, raw_snapshot: bytes | None = None,
         count += 1
     if not count:
         raise ValueError("no proxy server outbounds found")
+    return literal_ips, domains, count
+
+
+def collect(raw_config: bytes, raw_snapshot: bytes | None = None,
+            now: int | None = None) -> tuple[list[str], dict]:
+    now = int(time.time()) if now is None else now
+    if type(now) is not int or now < 0:
+        raise ValueError("invalid verification time")
+    literal_ips, domains, count = config_servers(raw_config)
 
     digest = hashlib.sha256(raw_config).hexdigest()
     expires_at = None

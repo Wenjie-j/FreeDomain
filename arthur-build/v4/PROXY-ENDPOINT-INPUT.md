@@ -25,8 +25,8 @@ trojan、hysteria、hysteria2、tuic、anytls、shadowtls、ssh、naive。仅忽
 
 适配器应使用实际 DNS TTL 与 900 秒上限中的较早期限，处理 CNAME 最短有效期；
 不得为方便通过校验延长 TTL。快照只证明输入绑定和有效期检查，不证明 DNS
-答案真实或完整。自动解析、TTL 刷新、目标核心使用相同答案的约束、失败时
-保留上一版和配置切换事务仍待 B2 实现。不能把该离线工具当作已经解决 DNS 竞态。
+答案真实或完整。受限的离线解析和快照原子刷新已实现，详情见下文；定时刷新、目标核心使用相同答案的约束、
+实时规则替换与配置切换事务仍待 B2 运行集成。不能把该离线工具当作已经解决 DNS 竞态。
 
 ## 候选生成
 
@@ -45,3 +45,33 @@ nft 文件均为私有材料；生成文件不覆盖已有文件。最终安装�
 - https://github.com/SagerNet/sing-box/blob/1ac1a339cb1223e9c70eae14c44411c75033c02d/option/outbound.go
 - https://github.com/SagerNet/sing-box/blob/1ac1a339cb1223e9c70eae14c44411c75033c02d/option/simple.go
 - https://github.com/SagerNet/sing-box/blob/1ac1a339cb1223e9c70eae14c44411c75033c02d/option/wireguard.go
+
+## 离线 DNS 解析适配器
+
+`refresh_proxy_dns_snapshot.py` 接收私有配置、显式公网 IPv4 解析器和快照输出
+路径，使用执行主机的 BIND `dig` 查询每个域名的 A 记录。它关闭用户 digrc、
+搜索后缀和 EDNS，指定完整域名及输出格式；不执行 shell 拼接。最多处理 128 个
+不同域名，每次命令最多 5 秒，总查询预算 45 秒。它只刷新快照文件，不启动
+路由器服务、不安装防火墙、不安排定时任务，也不新增目标固件的 Python/BIND 依赖。
+
+响应须匹配请求域名，状态为 NOERROR、非截断且答案计数一致。拒绝空答案、
+非公网或 IPv6 答案、缺失末端 A 记录、别名循环/歧义及无关答案。沿最多 16 个
+名字的 CNAME 链收集全部终端 A 地址，采用链和地址集合的最短 TTL，最多保留
+900 秒。有效期从查询前计时，查询耗时不会额外延长 TTL；整个批次结束与保存前
+都会检查有效期和候选配置原始字节。
+
+先获取快照独占锁，完成全部解析和校验后写入权限 0600 的临时文件，再原子
+替换快照。查询失败、解析过期、配置变化或替换失败均保留上一次文件。
+外部写入已经修改的快照不被覆盖；已有锁不被自动删除。进程异常终止留下的锁
+需要独立检查，不据此开放目标服务写入。
+
+保留旧文件仅用于保存上次结果，不延长其有效期，也不保证旧规则对应的连接
+仍然可用。旧快照到期后，`collect` 仍会拒绝将其用于新候选。DNS 来源一致性、
+解析器可信性和目标核心实际使用同一组地址尚未通过实机验证。
+
+自动测试包含受控响应的故障与失败保留场景，以及真实 BIND dig 通过回环地址
+读取模拟 DNS 服务的 CNAME/多地址响应。该测试不查询用户实际节点或外部 DNS。
+
+参考：
+- https://bind9.readthedocs.io/en/v9.18.39/manpages.html#dig-dns-lookup-utility
+- https://www.rfc-editor.org/rfc/rfc2181.html
