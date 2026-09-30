@@ -1,4 +1,6 @@
 import hashlib
+import contextlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -77,6 +79,23 @@ class DiagnosticImageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid FIT"):
                 audit.build_report(self.target, self.config, self.root,
                                    {}, {}, {}, self.inventory)
+
+    def test_failed_inspection_writes_failure_metadata_and_nonzero_exit(self):
+        metadata = self.base / "metadata.json"
+        metadata.write_text("{}")
+        output = self.base / "report.json"
+        argv = []
+        for name, path in (("target-dir", self.target), ("config", self.config),
+                           ("root-dir", self.root), ("core-trace", metadata),
+                           ("owners", metadata), ("openclash-trace", metadata),
+                           ("inventory", metadata), ("output", output)):
+            argv += ["--" + name, str(path)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = audit.main(argv)
+        self.assertEqual(result, 2)
+        report = json.loads(output.read_text())
+        self.assertEqual(report["status"], "BLOCKED_INVALID_DIAGNOSTIC_IMAGE")
+        self.assertFalse(report["write_approved"])
 
 
 if __name__ == "__main__":

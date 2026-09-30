@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import tarfile
 import tempfile
 import zipfile
 
@@ -59,20 +60,31 @@ def build_report(target: Path, config: Path, root: Path, core_trace: dict,
     }
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("target-dir", "config", "root-dir", "core-trace", "owners",
                  "openclash-trace", "inventory", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
-    args = parser.parse_args()
-    report = build_report(
-        args.target_dir, args.config, args.root_dir,
-        json.loads(args.core_trace.read_text()), json.loads(args.owners.read_text()),
-        json.loads(args.openclash_trace.read_text()), json.loads(args.inventory.read_text()))
+    args = parser.parse_args(argv)
+    try:
+        report = build_report(
+            args.target_dir, args.config, args.root_dir,
+            json.loads(args.core_trace.read_text()), json.loads(args.owners.read_text()),
+            json.loads(args.openclash_trace.read_text()), json.loads(args.inventory.read_text()))
+    except (OSError, ValueError, tarfile.TarError, zipfile.BadZipFile) as error:
+        report = {
+            "classification": "DIAGNOSTIC_IMAGE_BUILD_NOT_RELEASE_OR_FLASH_APPROVAL",
+            "status": "BLOCKED_INVALID_DIAGNOSTIC_IMAGE",
+            "inspection_error": str(error),
+            "write_approved": False,
+            "router_tested": False,
+            "firmware_bytes_uploaded": False,
+        }
     body = json.dumps(report, indent=2) + "\n"
     args.output.write_text(body)
     print(body, end="")
+    return 0 if report["status"] == "DIAGNOSTIC_IMAGE_INSPECTED" else 2
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
