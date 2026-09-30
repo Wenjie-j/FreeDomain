@@ -64,6 +64,17 @@ class ConfigPreflightContractTests(unittest.TestCase):
             self.assertIn(token, self.source)
         self.assertNotIn("openwrt/bin/packages/**/arthur-openclash-core-*.apk", self.source)
 
+    def test_short_core_workflow_emulates_only_version_and_synthetic_config(self):
+        short = WORKFLOW.with_name("arthur-v4-openclash-core-audit.yml").read_text()
+        self.assertIn("smoke_openclash_core.py", short)
+        self.assertIn("v4-openclash-core-qemu-smoke.json", short)
+        upload = short.partition("- name: Upload metadata only")[2]
+        self.assertTrue(upload)
+        self.assertNotIn("clash_meta", upload)
+        self.assertNotIn(".apk", upload)
+        self.assertNotIn(".gz", upload)
+        self.assertNotIn("**", upload)
+
 
 if __name__ == "__main__":
     unittest.main()

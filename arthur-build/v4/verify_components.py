@@ -7,6 +7,9 @@ import re
 import sys
 import zipfile
 from pathlib import Path
+from prepare_openclash_core import SOURCE as OPENCLASH_CORE_SOURCE
+from prepare_openclash_core import ARCHIVE_SHA256 as OPENCLASH_CORE_ARCHIVE_SHA256
+from prepare_openclash_core import trace_matches as openclash_trace_matches
 
 REQUIRED_PACKAGES = {
     "base": ("luci", "luci-i18n-base-zh-cn", "luci-compat", "firewall4"),
@@ -44,8 +47,6 @@ CORE_FORBIDDEN_FILES = (
 )
 V4_BASE = "92a2d104145c8d265851c4b388a41bd8e9c21cd9"
 CORE_SOURCE = "1ac1a339cb1223e9c70eae14c44411c75033c02d"
-OPENCLASH_CORE_SOURCE = "6b99254c577e4e674887e93f42da89a03b5e9e44"
-OPENCLASH_CORE_BLOB = "5c90d325491032c316849c0ed39711a16dfdda4c"
 MUTATION_ACTIONS = ("active", "test", "delete", "move", "add_link", "add_raw",
                     "add_manual", "update", "sub_add", "sub_update", "sub_rename",
                     "sub_delete")
@@ -166,18 +167,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
         binary = root_dir / "etc/openclash/core/clash_meta"
         if binary.is_file():
             data = binary.read_bytes()
-            if (len(data) >= 64 and data[:7] == b"\x7fELF\x02\x01\x01"
-                    and data[18:20] == b"\xb7\x00"
-                    and int.from_bytes(data[16:18], "little") in (2, 3)
-                    and openclash_core_build_report.get("source_repository")
-                    == "https://github.com/vernesong/OpenClash.git"
-                    and openclash_core_build_report.get("source_commit")
-                    == OPENCLASH_CORE_SOURCE
-                    and openclash_core_build_report.get("source_blob_sha")
-                    == OPENCLASH_CORE_BLOB
-                    and openclash_core_build_report.get("target_arch") == "aarch64"
-                    and openclash_core_build_report.get("binary_sha256")
-                    == hashlib.sha256(data).hexdigest()):
+            if openclash_trace_matches(data, openclash_core_build_report):
                 openclash_trace = "MATCHES_DECLARED_OPENCLASH_CORE_TRACE"
         if openclash_trace != "MATCHES_DECLARED_OPENCLASH_CORE_TRACE":
             openclash_trace = "INVALID_OPENCLASH_CORE_TRACE"

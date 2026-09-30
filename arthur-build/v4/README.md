@@ -27,11 +27,12 @@ declaration does not prove the package archive contents; derive this report
 from actual package files when V4 packages exist.
 The OpenClash LuCI APK is only its management UI. The component gate also
 requires an actual ARM64 ELF at `/etc/openclash/core/clash_meta`, a declared
-source revision/blob and staged binary digest via `--openclash-core-build-report`,
+source revision, release archive SHA-256 and staged binary digest via
+`--openclash-core-build-report`,
 and separate ownership by an `arthur-openclash-core` package. The core is not
 yet integrated into an image. The trace fields are declarations, not
 independent proof of provenance; the package build must later fetch and verify
-the locked blob before extracting it. Missing evidence blocks the gate.
+the locked release bytes before decompressing them. Missing evidence blocks the gate.
 This is a declared offline build trace, not proof of hardware runtime or
 cryptographic supply chain attestation. Neither this gate nor the inherited OTA gates prove runtime
 1GiB RAM, radio calibration, live NSS acceleration, migration, or recovery.
@@ -352,24 +353,29 @@ Makefile builds that program via its host target. The next run now compiles
 dependency; `wget` is also installed for Argon's declared dependency. This
 does not establish that the OpenClash package or final image has passed.
 
-The next staging change prepares that independent OpenClash core trial.
-`prepare_openclash_core.py` checks the archive against the pinned Git blob
-digest, rejects extra files, links and unsafe paths, validates a little-endian
-ARM64 executable, and stages only the executable without running it.
+The staging package now prepares the official stable Mihomo `v1.19.31` for
+OpenClash. `prepare_openclash_core.py` checks its gzip against the pinned
+release SHA-256, bounds compressed/decompressed sizes, rejects symlinked
+inputs/destinations, validates a little-endian ARM64 executable, and stages
+only that executable without running it. No tar paths are extracted.
 `report_openclash_core_package.py` checks that the package owns exactly
 `/etc/openclash/core/clash_meta`, collides with no existing package, and matches
 the preparation trace. It installs no service or configuration.
-The locked upstream `master/core_version` identifies this binary candidate as
-`alpha-ge183c58`, so the config selects it as `m`, outside the image. The
-workflow uploads trace/audit reports only, not this core APK. Stable release
-selection, corresponding source/license review, actual cloud packaging and
-target runtime are still pending. Archive identity alone proves neither
-the original compiler/source nor hardware compatibility.
-An independent five-minute byte-audit workflow runs on the staging branch:
-it verifies the real locked archive and ARM64 file header without building a
-toolchain, executing the binary or publishing it. This can run alongside the
-existing long package build; its only artifact is audit metadata.
-Run `36690852290` passed the real-archive audit at commit `e86960ce`.
+It remains selected as `m`, outside the image, pending actual cloud package
+compilation, target integration and runtime review. The workflow uploads
+trace/audit reports only, not this core APK. The upstream tag's source revision
+and its GPLv3 license file have been checked; this is not an independent
+reproduction of the release build or a source distribution approval.
+Archive identity alone proves neither the compiler/source relationship nor
+hardware compatibility.
+The separate short workflow verifies the actual release bytes, then uses
+`smoke_openclash_core.py` under QEMU ARM64 for `-v` and `-t` only. Its synthetic
+configuration disables listener ports and DNS and contains no proxy nodes.
+It launches no proxy service and uploads metadata only. It does not test
+real OpenClash UI actions, DNS/firewall4, NSS, traffic or boot compatibility.
+
+Historical trial: run `36690852290` passed the alpha archive byte audit at
+commit `e86960ce`. That trial has now been replaced in the active source lock.
 Archive SHA-256:
 `8252d16726041872825cdd9089c798c318f8862466b40b34d8bf62225ef57e34`.
 It staged a 10,754,792-byte ARM64 ELF with SHA-256
@@ -378,10 +384,10 @@ This is byte identity and architecture evidence, not an execution or APK test.
 
 `openclash-stable-core.candidate.json` separately records the official
 non-prerelease Mihomo `v1.19.31`, its tag's source commit, and GitHub's ARM64
-asset SHA-256 for subsequent stable packaging. It does not replace the
-active trial lock or select the stable binary for installation. The gzip
-asset has not yet been downloaded, licensed against corresponding source,
-packaged, or tested on Arthur.
+asset SHA-256. The same version is now selected in `feeds.lock.json` for
+isolated packaging. This is still not an installation or flash approval.
+The stable gzip's real cloud verification is pending, as is package compilation
+and Arthur runtime validation.
 
 The pinned mwan3 2.12.2 package still invokes iptables and declares the
 `iptables`/`ip6tables` virtual dependencies. The candidate therefore selects

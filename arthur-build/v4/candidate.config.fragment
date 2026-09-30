@@ -5,8 +5,8 @@ CONFIG_PACKAGE_luci=y
 CONFIG_PACKAGE_luci-compat=y
 CONFIG_PACKAGE_luci-theme-argon=y
 CONFIG_PACKAGE_luci-app-openclash=y
-# Pinned upstream core is a prebuilt alpha trial: compile an independent APK,
-# but do not include it in an image before stable-source and runtime review.
+# Pinned stable core: compile an independent APK, but do not include it in an
+# image before target runtime, migration and source distribution review.
 CONFIG_PACKAGE_arthur-openclash-core=m
 CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y

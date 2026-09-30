@@ -106,14 +106,11 @@ jobs:
 
       - name: Verify pinned upstream ARM64 OpenClash core (no execution)
         run: |
-          core_rev="$(jq -er '.openclash_core_source.revision' arthur-build/v4/feeds.lock.json)"
-          core_path="$(jq -er '.openclash_core_source.archive_path' arthur-build/v4/feeds.lock.json)"
-          [[ "$core_rev" == '6b99254c577e4e674887e93f42da89a03b5e9e44' ]]
-          [[ "$core_path" == 'master/meta/clash-linux-arm64.tar.gz' ]]
-          curl -fL --retry 2 -o "$RUNNER_TEMP/openclash-arm64.tar.gz" \
-            "https://raw.githubusercontent.com/vernesong/OpenClash/$core_rev/$core_path"
+          core_url="$(jq -er '.openclash_core_source.download_url' arthur-build/v4/feeds.lock.json)"
+          [[ "$core_url" == 'https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-linux-arm64-v1.19.31.gz' ]]
+          curl -fL --max-time 120 --retry 2 -o "$RUNNER_TEMP/openclash-arm64.gz" "$core_url"
           python3 arthur-build/v4/prepare_openclash_core.py \
-            --archive "$RUNNER_TEMP/openclash-arm64.tar.gz" \
+            --archive "$RUNNER_TEMP/openclash-arm64.gz" \
             --source-lock arthur-build/v4/feeds.lock.json \
             --package-dir openwrt/package/arthur/arthur-openclash-core \
             --trace v4-openclash-core-build-trace.json
@@ -244,7 +241,7 @@ jobs:
           make -j2 package/arthur/arthur-openclash-core/compile V=s
           core_apk="$(find bin/packages -name 'arthur-openclash-core-*.apk' -print -quit)"
           core_root="$(find build_dir/target-* -type d \
-            -path '*/arthur-openclash-core-20260930/.pkgdir/arthur-openclash-core' -print -quit)"
+            -path '*/arthur-openclash-core-1.19.31/.pkgdir/arthur-openclash-core' -print -quit)"
           test -n "$core_apk"
           test -n "$core_root"
           python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_openclash_core_package.py" \

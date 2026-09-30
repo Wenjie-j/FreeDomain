@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from prepare_openclash_core import ARCHIVE_PATH, BLOB, REPOSITORY, SOURCE, validate_arm64_elf
+from prepare_openclash_core import VERSION, trace_matches, validate_arm64_elf
 
 PACKAGE = "arthur-openclash-core"
 CORE_PATH = "etc/openclash/core/clash_meta"
@@ -27,15 +27,7 @@ def build_report(root: Path, apk: Path, config: Path,
     validate_arm64_elf(data)
     if not binary.stat().st_mode & 0o111:
         raise ValueError("staged core is not executable")
-    expected = {
-        "source_repository": REPOSITORY, "source_commit": SOURCE,
-        "source_archive_path": ARCHIVE_PATH, "source_blob_sha": BLOB,
-        "archive_git_blob_verified": True, "target_arch": "aarch64",
-        "binary_sha256": hashlib.sha256(data).hexdigest(), "binary_size": len(data),
-        "executed_during_preparation": False,
-    }
-    if (any(trace.get(key) != value for key, value in expected.items())
-            or not re.fullmatch(r"[0-9a-f]{64}", str(trace.get("archive_sha256", "")))):
+    if not trace_matches(data, trace):
         raise ValueError("core preparation trace differs from staged payload")
     if "CONFIG_PACKAGE_arthur-openclash-core=m" not in config.read_text().splitlines():
         raise ValueError("prebuilt trial core must be a module outside the candidate image")
@@ -46,7 +38,8 @@ def build_report(root: Path, apk: Path, config: Path,
     return {
         "classification": "OPENCLASH_CORE_PACKAGE_NOT_RUNTIME_APPROVAL",
         "package": PACKAGE, "package_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-        "binary_sha256": expected["binary_sha256"], "target_arch": "aarch64",
+        "binary_sha256": trace["binary_sha256"], "target_arch": "aarch64",
+        "source_version": VERSION,
         "installed_file_count": 1, "configuration_or_service_installed": False,
         "image_inclusion_approved": False,
         "runtime_tested": False, "status": "PACKAGE_PAYLOAD_AUDITED",

@@ -19,12 +19,13 @@
     "purpose": "Pinned candidate LuCI package for the V4 build; runtime interaction with Sing-box remains unverified"
   },
   "openclash_core_source": {
-    "repository": "https://github.com/vernesong/OpenClash.git",
-    "revision": "6b99254c577e4e674887e93f42da89a03b5e9e44",
-    "archive_path": "master/meta/clash-linux-arm64.tar.gz",
-    "git_blob_sha": "5c90d325491032c316849c0ed39711a16dfdda4c",
-    "upstream_version": "alpha-ge183c58",
-    "purpose": "Prebuilt alpha trial for independent packaging only; stable source/license review and target runtime required before image inclusion or APK publication"
+    "repository": "https://github.com/MetaCubeX/mihomo.git",
+    "revision": "ab405bad5beeeac8b003bb01f60f134f6df54471",
+    "version": "v1.19.31",
+    "archive_path": "mihomo-linux-arm64-v1.19.31.gz",
+    "archive_sha256": "9e0f11afbf38426b8bd88fdc594678f8161c57eccb4e1b77acb12b493904f1d4",
+    "download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-linux-arm64-v1.19.31.gz",
+    "purpose": "Official stable prebuilt ARM64 core candidate; isolated package only until target runtime, migration and source distribution checks pass"
   },
   "feeds": [
     {"name": "packages", "repository": "https://github.com/openwrt/packages.git", "revision": "8f9ad5085e0e401e4327638a4e05258e1c5d4569"},

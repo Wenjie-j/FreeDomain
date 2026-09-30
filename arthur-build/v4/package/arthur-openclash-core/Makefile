@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=arthur-openclash-core
-PKG_VERSION:=20260930
+PKG_VERSION:=1.19.31
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-3.0
 PKG_MAINTAINER:=Arthur V4 project
@@ -11,7 +11,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/arthur-openclash-core
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=Pinned ARM64 OpenClash Meta core candidate
+  TITLE:=Pinned stable ARM64 OpenClash Meta core candidate
   DEPENDS:=@aarch64
 endef
 

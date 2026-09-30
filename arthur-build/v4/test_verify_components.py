@@ -17,10 +17,10 @@ class CoreOriginTest(unittest.TestCase):
         lock = json.loads(path.with_name("feeds.lock.json").read_text())
         core = lock["openclash_core_source"]
         self.assertEqual(core["repository"],
-                         "https://github.com/vernesong/OpenClash.git")
-        self.assertEqual(core["archive_path"], "master/meta/clash-linux-arm64.tar.gz")
+                         "https://github.com/MetaCubeX/mihomo.git")
+        self.assertEqual(core["archive_path"], "mihomo-linux-arm64-v1.19.31.gz")
         self.assertEqual(core["revision"], module.OPENCLASH_CORE_SOURCE)
-        self.assertEqual(core["git_blob_sha"], module.OPENCLASH_CORE_BLOB)
+        self.assertEqual(core["archive_sha256"], module.OPENCLASH_CORE_ARCHIVE_SHA256)
 
     def test_core_binary_and_custom_service_must_have_separate_package_owners(self):
         owners = {"usr/bin/sing-box": ["sing-box"]}
@@ -113,11 +113,16 @@ class CoreOriginTest(unittest.TestCase):
                 z.writestr("jdcloud_re-ss-01.manifest", "")
                 z.writestr("final.config", "")
             trace = {
-                "source_repository": "https://github.com/vernesong/OpenClash.git",
+                "source_repository": "https://github.com/MetaCubeX/mihomo.git",
                 "source_commit": module.OPENCLASH_CORE_SOURCE,
-                "source_blob_sha": module.OPENCLASH_CORE_BLOB,
+                "source_version": "v1.19.31",
+                "source_archive_path": "mihomo-linux-arm64-v1.19.31.gz",
+                "archive_sha256": module.OPENCLASH_CORE_ARCHIVE_SHA256,
+                "archive_sha256_verified": True,
                 "target_arch": "aarch64",
                 "binary_sha256": hashlib.sha256(arm64_elf).hexdigest(),
+                "binary_size": len(arm64_elf),
+                "executed_during_preparation": False,
             }
             check = lambda report: module.inspect(
                 archive, root, openclash_core_build_report=report)
@@ -126,7 +131,9 @@ class CoreOriginTest(unittest.TestCase):
             self.assertEqual(check(trace)["component_gate"],
                              "BLOCKED_INCOMPLETE_COMPONENTS")
             for field, wrong in (("source_commit", "0" * 40),
-                                 ("source_blob_sha", "0" * 40),
+                                 ("archive_sha256", "0" * 64),
+                                 ("source_version", "alpha-ge183c58"),
+                                 ("archive_sha256_verified", False),
                                  ("target_arch", "x86_64"),
                                  ("binary_sha256", "0" * 64)):
                 with self.subTest(field=field):

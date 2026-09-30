@@ -1,4 +1,4 @@
-name: Arthur V4 pinned OpenClash core byte audit (no execution)
+name: Arthur V4 stable OpenClash core checks (QEMU only)
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
       - '.github/workflows/arthur-v4-openclash-core-audit.yml'
       - 'arthur-build/v4/feeds.lock.json'
       - 'arthur-build/v4/prepare_openclash_core.py'
+      - 'arthur-build/v4/smoke_openclash_core.py'
       - 'arthur-build/v4/test_openclash_core_package.py'
       - 'arthur-build/v4/report_openclash_core_package.py'
       - 'arthur-build/v4/package/arthur-openclash-core/**'
@@ -20,7 +21,7 @@ permissions:
 jobs:
   byte-audit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Synthetic safety tests
@@ -29,22 +30,30 @@ jobs:
           python3 -m unittest discover -s arthur-build/v4 -p 'test_verify_components.py' -v
       - name: Verify locked archive and ARM64 bytes without executing them
         run: |
-          core_rev="$(jq -er '.openclash_core_source.revision' arthur-build/v4/feeds.lock.json)"
-          core_path="$(jq -er '.openclash_core_source.archive_path' arthur-build/v4/feeds.lock.json)"
-          [[ "$core_rev" == '6b99254c577e4e674887e93f42da89a03b5e9e44' ]]
-          [[ "$core_path" == 'master/meta/clash-linux-arm64.tar.gz' ]]
-          curl -fL --max-time 120 --retry 1 -o "$RUNNER_TEMP/openclash-arm64.tar.gz" \
-            "https://raw.githubusercontent.com/vernesong/OpenClash/$core_rev/$core_path"
+          core_url="$(jq -er '.openclash_core_source.download_url' arthur-build/v4/feeds.lock.json)"
+          [[ "$core_url" == 'https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-linux-arm64-v1.19.31.gz' ]]
+          curl -fL --max-time 120 --retry 1 -o "$RUNNER_TEMP/openclash-arm64.gz" "$core_url"
           cp -a arthur-build/v4/package/arthur-openclash-core "$RUNNER_TEMP/core-package"
           python3 arthur-build/v4/prepare_openclash_core.py \
-            --archive "$RUNNER_TEMP/openclash-arm64.tar.gz" \
+            --archive "$RUNNER_TEMP/openclash-arm64.gz" \
             --source-lock arthur-build/v4/feeds.lock.json \
             --package-dir "$RUNNER_TEMP/core-package" \
             --trace v4-openclash-core-archive-audit.json
+      - name: Check version and minimal config in ARM64 emulation (no proxy service)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user
+          python3 arthur-build/v4/smoke_openclash_core.py \
+            --binary "$RUNNER_TEMP/core-package/files/clash_meta" \
+            --trace v4-openclash-core-archive-audit.json \
+            --output v4-openclash-core-qemu-smoke.json
       - name: Upload metadata only (no binary or installable APK)
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: arthur-v4-openclash-core-byte-audit-no-binary
-          path: v4-openclash-core-archive-audit.json
-          if-no-files-found: error
+          path: |
+            v4-openclash-core-archive-audit.json
+            v4-openclash-core-qemu-smoke.json
+          if-no-files-found: warn
           retention-days: 30
