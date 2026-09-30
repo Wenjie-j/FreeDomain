@@ -5,6 +5,7 @@ import pathlib
 import tempfile
 import unittest
 import zipfile
+from test_core_elf import synthetic_arm64_elf
 
 path = pathlib.Path(__file__).with_name("verify_components.py")
 spec = importlib.util.spec_from_file_location("components", path)
@@ -94,6 +95,16 @@ class CoreOriginTest(unittest.TestCase):
             self.assertEqual(result["core_build_trace"], "INVALID_V4_BUILD_TRACE")
             self.assertEqual(result["component_gate"], "BLOCKED_INCOMPLETE_COMPONENTS")
             claimed_old["base_commit"] = module.V4_BASE
+            # Matching metadata and a digest cannot make text into ARM64 code.
+            result = module.inspect(archive, root, claimed_old)
+            self.assertEqual(result["core_build_trace"], "INVALID_V4_BUILD_TRACE")
+            core = root / "usr/bin/sing-box"
+            core.write_bytes(synthetic_arm64_elf())
+            core.chmod(0o755)
+            claimed_old["binary_sha256"] = hashlib.sha256(core.read_bytes()).hexdigest()
+            result = module.inspect(archive, root, claimed_old)
+            self.assertEqual(result["core_build_trace"], "MATCHES_DECLARED_V4_BUILD_TRACE")
+            self.assertEqual(result["component_gate"], "BLOCKED_INCOMPLETE_COMPONENTS")
             claimed_old["binary_sha256"] = "0" * 64
             result = module.inspect(archive, root, claimed_old)
             self.assertEqual(result["core_build_trace"], "INVALID_V4_BUILD_TRACE")

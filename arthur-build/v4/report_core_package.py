@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 from verify_components import CORE_SOURCE, CORE_TAGS, V4_BASE
+from core_elf import read_core_file
 
 TAG_FLAGS = {
     "with_quic": "CONFIG_SINGBOX_WITH_QUIC",
@@ -31,8 +32,7 @@ def build_reports(package_root: Path, apk: Path, config: Path) -> tuple[dict, di
     if files != ["usr/bin/sing-box"] or any(p.is_symlink() for p in package_root.rglob("*")):
         raise ValueError("core package must install only usr/bin/sing-box")
     binary = package_root / "usr/bin/sing-box"
-    if not binary.read_bytes().startswith(b"\x7fELF"):
-        raise ValueError("core binary is not ELF")
+    binary_bytes, elf = read_core_file(binary)
     flags = set(config.read_text(encoding="utf-8").splitlines())
     if ('CONFIG_TARGET_ARCH_PACKAGES="' + ARCH + '"' not in flags
             or "CONFIG_PACKAGE_sing-box=y" not in flags):
@@ -40,10 +40,10 @@ def build_reports(package_root: Path, apk: Path, config: Path) -> tuple[dict, di
     tags = sorted(tag for tag, flag in TAG_FLAGS.items() if flag + "=y" in flags)
     if not CORE_TAGS.issubset(tags):
         raise ValueError("required Sing-box build feature missing")
-    if (apk.name != PACKAGE or not apk.is_file()
+    if (apk.name != PACKAGE or apk.is_symlink() or not apk.is_file() or not apk.stat().st_size
             or not re.search(r"(?:^|/)bin/packages/" + ARCH + r"/", apk.as_posix())):
         raise ValueError("expected package archive is missing or from wrong architecture")
-    binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
+    binary_hash = hashlib.sha256(binary_bytes).hexdigest()
     archive_hash = hashlib.sha256(apk.read_bytes()).hexdigest()
     trace = {
         "classification": "CORE_PACKAGE_BUILD_TRACE_NOT_RUNTIME_APPROVAL",
@@ -54,6 +54,7 @@ def build_reports(package_root: Path, apk: Path, config: Path) -> tuple[dict, di
         "build_tags": tags,
         "binary_sha256": binary_hash,
         "package_sha256": archive_hash,
+        "elf_structure": elf,
     }
     owners = {"usr/bin/sing-box": ["sing-box"]}
     summary = {

@@ -332,6 +332,24 @@ the APK on the next build. The partial report deliberately lacks custom service
 owners, so the complete image gate stays blocked. This new reporting step
 has only local tests until a new cloud build completes.
 
+`core_elf.py` adds bounded, non-executing Sing-box payload checks to both
+the package reporter and final component inventory. It requires an executable
+regular ELF64 little-endian ARM64 file, valid program-header bounds, valid load
+segment size/alignment and an entry point in a file-backed executable segment.
+Wrong architecture, truncated data, text files with matching declared hashes
+and symlinked binaries cannot satisfy these checks. The report records whether
+an interpreter is declared; this is not libc, kernel, build-origin or proxy
+runtime validation. The earlier run `36555424005` APK (SHA-256
+`d83724e7bdc4d1fb4ff7e49cf75f596b9e0faceff73f251f5b3b3456a2739a8e`)
+was inspected read-only against these checks: its 54,824,720-byte core passed,
+with SHA-256 `065b5e81bb3ee3f3da421e9ec1c9abed39fbd57bf8afa6c875186bdb9519767f`,
+two load segments and a declared interpreter. The core was not executed or
+installed. This preparation is on the staging branch; the current long run
+`36699112998` retains its original checker revision.
+
+ELF structure reference:
+https://github.com/torvalds/linux/blob/v6.12/include/uapi/linux/elf.h
+
 `.github/workflows/arthur-v4-config-preflight.yml` now checks out the pinned
 base and feeds, stages Argon as a package, downloads and verifies the pinned
 Sing-box source archive, compares the generated 1.14.1 recipe byte for byte

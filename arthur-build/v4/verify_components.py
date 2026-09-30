@@ -10,6 +10,7 @@ from pathlib import Path
 from prepare_openclash_core import SOURCE as OPENCLASH_CORE_SOURCE
 from prepare_openclash_core import ARCHIVE_SHA256 as OPENCLASH_CORE_ARCHIVE_SHA256
 from prepare_openclash_core import trace_matches as openclash_trace_matches
+from core_elf import read_core_file
 
 REQUIRED_PACKAGES = {
     "base": ("luci", "luci-i18n-base-zh-cn", "luci-compat", "firewall4"),
@@ -145,7 +146,11 @@ def inspect(artifact: Path, root_dir: Path | None = None,
     core_trace = "MISSING_V4_BUILD_TRACE"
     if root_dir is not None and isinstance(core_build_report, dict):
         binary = root_dir / "usr/bin/sing-box"
-        if binary.is_file() and all((
+        try:
+            core_bytes, _ = read_core_file(binary)
+        except (OSError, ValueError):
+            core_bytes = None
+        if core_bytes is not None and all((
             core_build_report.get("base_commit") == V4_BASE,
             core_build_report.get("source_commit") == CORE_SOURCE,
             core_build_report.get("source_version") == "1.14.1",
@@ -155,7 +160,7 @@ def inspect(artifact: Path, root_dir: Path | None = None,
             tags = core_build_report["build_tags"]
             if (all(isinstance(tag, str) for tag in tags)
                     and CORE_TAGS.issubset(tags)
-                    and hashlib.sha256(binary.read_bytes()).hexdigest()
+                    and hashlib.sha256(core_bytes).hexdigest()
                     == core_build_report.get("binary_sha256")):
                 core_trace = "MATCHES_DECLARED_V4_BUILD_TRACE"
         if core_trace != "MATCHES_DECLARED_V4_BUILD_TRACE":

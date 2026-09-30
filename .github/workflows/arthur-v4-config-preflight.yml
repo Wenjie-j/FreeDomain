@@ -14,6 +14,7 @@ on:
       - 'arthur-build/v4/prepare_v4_config_from_seed.py'
       - 'arthur-build/v4/prepare_singbox_recipe.py'
       - 'arthur-build/v4/report_core_package.py'
+      - 'arthur-build/v4/core_elf.py'
       - 'arthur-build/v4/verify_components.py'
       - 'arthur-build/v4/package/sing-box/Makefile'
       - 'arthur-build/v4/package/arthur-singbox-firewall4-test/**'

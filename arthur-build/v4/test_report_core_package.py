@@ -2,6 +2,7 @@ import importlib.util
 import pathlib
 import tempfile
 import unittest
+from test_core_elf import synthetic_arm64_elf
 
 
 path = pathlib.Path(__file__).with_name("report_core_package.py")
@@ -17,7 +18,8 @@ class CorePackageReportTest(unittest.TestCase):
             root = base / "ipkg-aarch64_cortex-a53/sing-box"
             binary = root / "usr/bin/sing-box"
             binary.parent.mkdir(parents=True)
-            binary.write_bytes(b"\x7fELFsample")
+            binary.write_bytes(synthetic_arm64_elf())
+            binary.chmod(0o755)
             apk = base / "bin/packages/aarch64_cortex-a53/packages/sing-box-1.14.1-r1.apk"
             apk.parent.mkdir(parents=True)
             apk.write_bytes(b"ADBsample")
