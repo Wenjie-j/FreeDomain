@@ -19,6 +19,7 @@ BOARD="$(cat /tmp/sysinfo/board_name)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 WORK="$(mktemp -d /tmp/arthur-running-fdt.XXXXXXXX)" || fail 'Unable to create temporary directory.'
 OUT="/tmp/Arthur-Runtime-FDT-$STAMP.tar.gz"
+[ ! -e "$OUT" ] && [ ! -L "$OUT" ] || fail "Archive already exists: $OUT"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 trap 'exit 130' INT
