@@ -11,13 +11,16 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from render_firewall4_draft import extract_cn4, normalize_endpoints, render
+from proxy_endpoint_inventory import collect, private_bytes
 
 
 def prepare(binary: Path, srs: Path, lan_iface: str,
-            proxy_endpoint_ipv4: str | list[str], output: Path):
+            proxy_endpoint_ipv4: str | list[str], output: Path,
+            endpoint_valid_until: int | None = None):
     if output.exists():
         raise ValueError("refusing to replace existing candidate")
     endpoints = normalize_endpoints(proxy_endpoint_ipv4)
@@ -39,6 +42,10 @@ def prepare(binary: Path, srs: Path, lan_iface: str,
         count = len(extract_cn4(raw_json))
         draft = render(raw_json, lan_iface, proxy_endpoint_ipv4)
 
+    if endpoint_valid_until is not None:
+        if (type(endpoint_valid_until) is not int
+                or int(time.time()) >= endpoint_valid_until):
+            raise ValueError("proxy DNS snapshot expired during candidate preparation")
     output.parent.mkdir(parents=True, exist_ok=True)
     # Link a complete temporary file into place without replacing older output.
     tmp_path = None
@@ -66,13 +73,30 @@ def main():
     parser.add_argument("--sing-box", type=Path, required=True)
     parser.add_argument("--geoip-cn-srs", type=Path, required=True)
     parser.add_argument("--lan-iface", required=True)
-    parser.add_argument("--proxy-endpoint-ipv4", required=True, action="append",
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--proxy-endpoint-ipv4", action="append",
                         help="Repeat for all node endpoint IPv4s; keep generated draft private")
+    inputs.add_argument("--singbox-config", type=Path,
+                        help="Private generated Sing-box JSON; no service or DNS query is run")
+    parser.add_argument("--endpoint-snapshot", type=Path,
+                        help="Private, fresh DNS answers bound to the exact config bytes")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    print(json.dumps(prepare(args.sing_box, args.geoip_cn_srs,
-                             args.lan_iface, args.proxy_endpoint_ipv4,
-                             args.output), indent=2))
+    endpoint_report = None
+    endpoints = args.proxy_endpoint_ipv4
+    if args.singbox_config is not None:
+        snapshot = (private_bytes(args.endpoint_snapshot)
+                    if args.endpoint_snapshot is not None else None)
+        endpoints, endpoint_report = collect(private_bytes(args.singbox_config), snapshot)
+    elif args.endpoint_snapshot is not None:
+        parser.error("--endpoint-snapshot requires --singbox-config")
+    report = prepare(args.sing_box, args.geoip_cn_srs, args.lan_iface,
+                     endpoints, args.output,
+                     endpoint_report["dns_snapshot_valid_until"]
+                     if endpoint_report is not None else None)
+    if endpoint_report is not None:
+        report["endpoint_input"] = endpoint_report
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__":

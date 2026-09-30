@@ -43,6 +43,25 @@ class SameSourceCnRules(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     module.prepare(root / "sing-box", srs, "br-lan", "8.8.8.8", output)
 
+    def test_dns_expiry_during_decompile_does_not_publish_a_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            srs = root / "geoip-cn.srs"
+            srs.write_bytes(b"test-srs" * 20)
+            output = root / "new-directory/candidate.nft"
+            cidrs = [f"11.{n // 65536}.{n // 256 % 256}.{n % 256}/32"
+                     for n in range(5000)]
+
+            def fake_decompile(command, **kwargs):
+                pathlib.Path(command[4]).write_text(json.dumps({"rules": [{"ip_cidr": cidrs}]}))
+
+            with patch.object(module.subprocess, "run", side_effect=fake_decompile), \
+                    patch.object(module.time, "time", return_value=1200):
+                with self.assertRaisesRegex(ValueError, "expired during"):
+                    module.prepare(root / "sing-box", srs, "br-lan", "1.1.1.1",
+                                   output, endpoint_valid_until=1200)
+            self.assertFalse(output.parent.exists())
+
     def test_failed_conversion_writes_no_candidate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
