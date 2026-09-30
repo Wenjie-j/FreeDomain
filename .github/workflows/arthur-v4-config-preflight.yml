@@ -312,6 +312,7 @@ jobs:
           mkdir -p "$overview_extracted"
           staging_dir/host/bin/apk extract --allow-untrusted --no-chown \
             --destination "$overview_extracted" "$overview_apk"
+          find "$overview_extracted" -type f -printf '%P\n' | sort
           python3 "$GITHUB_WORKSPACE/arthur-build/v4/report_overview_package.py" \
             --package-root "$overview_root" --apk "$overview_apk" --config .config \
             --apk-extracted-root "$overview_extracted" \

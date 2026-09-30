@@ -91,12 +91,21 @@ class OverviewPayloadTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "collision"):
             self.check()
 
-    def test_independently_extracted_payload_must_match_staged_files(self):
+    def extracted_fixture(self):
         extracted = self.base / "extracted"
         shutil.copytree(self.root, extracted)
+        metadata = extracted / audit.APK_FILE_LIST
+        metadata.parent.mkdir(parents=True)
+        metadata.write_text("".join(f"/{name}\n" for name in sorted(audit.FILES)))
+        metadata.chmod(0o644)
+        return extracted
+
+    def test_independently_extracted_payload_must_match_staged_files(self):
+        extracted = self.extracted_fixture()
         report, _ = audit.build_report(self.root, self.apk, self.config,
                                        self.source, self.owners, extracted)
         self.assertTrue(report["apk_payload_independently_extracted"])
+        self.assertEqual(set(report["apk_bookkeeping_sha256"]), {audit.APK_FILE_LIST})
         view = extracted / next(iter(audit.FILES))
         view.write_bytes(view.read_bytes() + b"\n// unexpected APK bytes\n")
         with self.assertRaisesRegex(ValueError, "extracted APK differs"):
@@ -106,6 +115,52 @@ class OverviewPayloadTests(unittest.TestCase):
         injected = extracted / "etc/init.d/extra"
         injected.parent.mkdir(parents=True)
         injected.write_text("unexpected")
+        with self.assertRaisesRegex(ValueError, "unexpected files"):
+            audit.build_report(self.root, self.apk, self.config,
+                               self.source, self.owners, extracted)
+
+    def test_extracted_bookkeeping_is_required_and_cannot_list_extra_files(self):
+        extracted = self.extracted_fixture()
+        metadata = extracted / audit.APK_FILE_LIST
+        original = metadata.read_bytes()
+        for data in (b"", original + b"/etc/init.d/extra\n",
+                     original.replace(b"/www/", b"/changed/")):
+            metadata.write_bytes(data)
+            with self.assertRaisesRegex(ValueError, "file list differs"):
+                audit.build_report(self.root, self.apk, self.config,
+                                   self.source, self.owners, extracted)
+        metadata.unlink()
+        with self.assertRaisesRegex(ValueError, "unexpected files"):
+            audit.build_report(self.root, self.apk, self.config,
+                               self.source, self.owners, extracted)
+
+    def test_other_bookkeeping_files_are_not_ignored(self):
+        extracted = self.extracted_fixture()
+        (extracted / "lib/apk/packages/foreign.list").write_text("/etc/init.d/extra\n")
+        with self.assertRaisesRegex(ValueError, "unexpected files"):
+            audit.build_report(self.root, self.apk, self.config,
+                               self.source, self.owners, extracted)
+
+    def test_extracted_symlinks_executable_data_and_special_files_block(self):
+        import os
+        extracted = self.extracted_fixture()
+        metadata = extracted / audit.APK_FILE_LIST
+        original = metadata.read_bytes()
+        metadata.unlink()
+        metadata.symlink_to(self.config)
+        with self.assertRaisesRegex(ValueError, "unexpected files"):
+            audit.build_report(self.root, self.apk, self.config,
+                               self.source, self.owners, extracted)
+        metadata.unlink()
+        metadata.write_bytes(original)
+        for name in (audit.APK_FILE_LIST, next(iter(audit.FILES))):
+            target = extracted / name
+            target.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, "executable"):
+                audit.build_report(self.root, self.apk, self.config,
+                                   self.source, self.owners, extracted)
+            target.chmod(0o644)
+        os.mkfifo(extracted / "unexpected-fifo")
         with self.assertRaisesRegex(ValueError, "unexpected files"):
             audit.build_report(self.root, self.apk, self.config,
                                self.source, self.owners, extracted)

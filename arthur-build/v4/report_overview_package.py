@@ -16,6 +16,7 @@ FILES = {
     "usr/share/rpcd/acl.d/luci-app-arthur-overview.json":
         "root/usr/share/rpcd/acl.d/luci-app-arthur-overview.json",
 }
+APK_FILE_LIST = f"lib/apk/packages/{PACKAGE}.list"
 READ_UBUS = {
     "mwan3": ["status"], "network.interface": ["dump"],
     "network.wireless": ["status"], "system": ["info"],
@@ -62,9 +63,21 @@ def build_report(root: Path, apk: Path, config: Path, source: Path,
         extracted_paths = list(extracted.rglob("*"))
         extracted_files = sorted(p.relative_to(extracted).as_posix()
                                  for p in extracted_paths if p.is_file())
-        if (extracted_files != files
-                or any(p.is_symlink() for p in extracted_paths)):
-            raise ValueError("unexpected files in extracted overview APK")
+        expected_apk_files = sorted([*files, APK_FILE_LIST])
+        if (extracted_files != expected_apk_files
+                or any(p.is_symlink() or not (p.is_file() or p.is_dir())
+                       for p in extracted_paths)):
+            raise ValueError("unexpected files in extracted overview APK: "
+                             f"expected {expected_apk_files}, got {extracted_files}")
+        # OpenWrt writes this bookkeeping file after collecting the payload.
+        # Permit exactly this file, and validate its contents rather than
+        # ignoring the entire lib/apk directory.
+        expected_list = "".join(f"/{name}\n" for name in files).encode()
+        if (extracted / APK_FILE_LIST).read_bytes() != expected_list:
+            raise ValueError("extracted APK package file list differs from payload")
+        for installed in expected_apk_files:
+            if (extracted / installed).stat().st_mode & 0o111:
+                raise ValueError("extracted APK data file must not be executable")
         for installed in files:
             if (extracted / installed).read_bytes() != (root / installed).read_bytes():
                 raise ValueError("extracted APK differs from staged overview")
@@ -77,6 +90,9 @@ def build_report(root: Path, apk: Path, config: Path, source: Path,
         "ubus_read_methods": READ_UBUS,
         "status": "READ_ONLY_STAGED_PAYLOAD_VERIFIED",
         "apk_payload_independently_extracted": extracted is not None,
+        "apk_bookkeeping_sha256": ({APK_FILE_LIST: hashlib.sha256(
+            (extracted / APK_FILE_LIST).read_bytes()).hexdigest()}
+            if extracted is not None else {}),
         "luci_runtime_verified": False,
         "firmware_inclusion_approved": False,
     }

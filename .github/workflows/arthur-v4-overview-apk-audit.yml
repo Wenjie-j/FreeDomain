@@ -1,0 +1,83 @@
+name: Arthur V4 real overview APK regression
+
+on:
+  push:
+    branches:
+      - arthur-v4-cn-bypass-order
+    paths:
+      - '.github/workflows/arthur-v4-overview-apk-audit.yml'
+      - 'arthur-build/v4/report_overview_package.py'
+      - 'arthur-build/v4/test_report_overview_package.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  extracted-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the actual overview APK from the failed build
+        uses: actions/download-artifact@v4
+        with:
+          name: arthur-v4-config-preflight-no-image
+          run-id: 36746159632
+          github-token: ${{ github.token }}
+          path: previous-build
+      - name: Build the same pinned native APK extractor
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build pkg-config libssl-dev zlib1g-dev lua5.1 liblua5.1-0-dev
+          git clone --filter=blob:none --no-checkout https://github.com/alpinelinux/apk-tools.git "$RUNNER_TEMP/apk-tools"
+          git -C "$RUNNER_TEMP/apk-tools" checkout b5a31c0d865342ad80be10d68f1bb3d3ad9b0866
+          test "$(git -C "$RUNNER_TEMP/apk-tools" rev-parse HEAD)" = b5a31c0d865342ad80be10d68f1bb3d3ad9b0866
+          VERSION=3.0.5 meson setup "$RUNNER_TEMP/apk-tools/build" "$RUNNER_TEMP/apk-tools" \
+            -Ddocs=disabled -Dhelp=enabled -Dlua_version=5.1 -Ddefault_library=static \
+            -Durl_backend=wget -Dzstd=disabled -Dpython=disabled -Dtests=disabled \
+            -Dcrypto_backend=openssl
+          meson compile -C "$RUNNER_TEMP/apk-tools/build" -j 2
+          test -x "$RUNNER_TEMP/apk-tools/build/src/apk"
+          "$RUNNER_TEMP/apk-tools/build/src/apk" --version
+      - name: Extract and audit the actual APK against reviewed source
+        run: |
+          apk="$(find previous-build/openwrt/bin/packages -name 'luci-app-arthur-overview-0.1-r1.apk' -print -quit)"
+          test -n "$apk"
+          mkdir -p "$RUNNER_TEMP/overview-extracted"
+          "$RUNNER_TEMP/apk-tools/build/src/apk" extract --allow-untrusted --no-chown \
+            --destination "$RUNNER_TEMP/overview-extracted" "$apk"
+          find "$RUNNER_TEMP/overview-extracted" -type f -printf '%P\n' | sort
+          PYTHONPATH=arthur-build/v4 python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+          import report_overview_package as audit
+          source = Path('arthur-build/v4/luci-app-arthur-overview')
+          reviewed = Path(os.environ['RUNNER_TEMP']) / 'reviewed-overview'
+          for installed, original in audit.FILES.items():
+              target = reviewed / installed
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source / original, target)
+              target.chmod(0o644)
+          apks = list(Path('previous-build/openwrt/bin/packages').rglob('luci-app-arthur-overview-0.1-r1.apk'))
+          if len(apks) != 1:
+              raise SystemExit('Expected exactly one overview APK')
+          report, _ = audit.build_report(
+              reviewed, apks[0], Path('previous-build/openwrt/.config'), source,
+              json.loads(Path('previous-build/v4-package-file-owners.partial.json').read_text()),
+              Path(os.environ['RUNNER_TEMP']) / 'overview-extracted')
+          report['classification'] = 'REAL_PREVIOUS_APK_REGRESSION_NOT_NEW_BUILD_OR_RUNTIME_APPROVAL'
+          report['reference_payload_origin'] = 'RECONSTRUCTED_REVIEWED_SOURCE'
+          report['source_workflow_run'] = 36746159632
+          Path('v4-overview-real-apk-regression.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arthur-v4-overview-real-apk-regression
+          path: v4-overview-real-apk-regression.json
+          if-no-files-found: error
+          retention-days: 14
