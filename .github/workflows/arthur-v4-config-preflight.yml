@@ -6,6 +6,7 @@ on:
       - arthur-v4-backend-integration
       - arthur-v4-core-report
       - arthur-v4-image-inventory
+      - arthur-v4-reviewed-root-probe
     paths:
       - '.github/workflows/arthur-v4-config-preflight.yml'
       - 'arthur-build/v4/candidate.config.fragment'
@@ -146,6 +147,7 @@ jobs:
           fi
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
           flags = (
               'TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01',
@@ -160,11 +162,19 @@ jobs:
               'SINGBOX_WITH_DHCP', 'SINGBOX_WITH_WIREGUARD',
               'SINGBOX_WITH_UTLS', 'SINGBOX_WITH_CLASH_API',
           )
+          # Only the isolated diagnostic probe includes already-built, non-activating
+          # OpenClash core and the read-only LuCI status page in its rootfs.
+          # The firewall4 TEST package is never included in either rootfs.
+          diagnostic_probe = os.environ.get('GITHUB_REF_NAME') == 'arthur-v4-reviewed-root-probe'
+          if diagnostic_probe:
+              flags += ('PACKAGE_arthur-openclash-core',
+                        'PACKAGE_luci-app-arthur-overview')
           config = set(Path('.config').read_text().splitlines())
           missing = [key for key in flags if f'CONFIG_{key}=y' not in config]
-          module_flags = ('PACKAGE_arthur-singbox-firewall4-test',
-                          'PACKAGE_arthur-openclash-core',
-                          'PACKAGE_luci-app-arthur-overview')
+          module_flags = ('PACKAGE_arthur-singbox-firewall4-test',)
+          if not diagnostic_probe:
+              module_flags += ('PACKAGE_arthur-openclash-core',
+                               'PACKAGE_luci-app-arthur-overview')
           missing_modules = [key for key in module_flags
                              if f'CONFIG_{key}=m' not in config]
           forbidden = ('PACKAGE_iptables-zz-legacy', 'PACKAGE_ip6tables-zz-legacy')
@@ -320,14 +330,14 @@ jobs:
             --owners ../v4-package-file-owners.partial.json --output-dir ..
 
       - name: Assemble diagnostic V4 image (not a release)
-        if: github.ref_name == 'arthur-v4-image-inventory'
+        if: github.ref_name == 'arthur-v4-image-inventory' || github.ref_name == 'arthur-v4-reviewed-root-probe'
         working-directory: openwrt
         run: |
           make download -j2 V=s
           make -j2 V=s || make -j1 V=s
 
       - name: Inspect actual image size and assembled component inventory
-        if: github.ref_name == 'arthur-v4-image-inventory'
+        if: github.ref_name == 'arthur-v4-image-inventory' || github.ref_name == 'arthur-v4-reviewed-root-probe'
         working-directory: openwrt
         run: |
           roots=(build_dir/target-*/root-qualcommax)
@@ -342,7 +352,7 @@ jobs:
             --output ../v4-diagnostic-image-inventory.json
 
       - name: Upload diagnostic image metadata only
-        if: always() && github.ref_name == 'arthur-v4-image-inventory'
+        if: always() && (github.ref_name == 'arthur-v4-image-inventory' || github.ref_name == 'arthur-v4-reviewed-root-probe')
         uses: actions/upload-artifact@v4
         with:
           name: arthur-v4-diagnostic-image-metadata-only
