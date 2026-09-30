@@ -28,6 +28,8 @@ class CoreOriginTest(unittest.TestCase):
         owners.update({path: ["arthur-singbox-service"]
                        for path in module.CUSTOM_OWNED_FILES})
         owners["etc/openclash/core/clash_meta"] = ["arthur-openclash-core"]
+        owners.update({name: ["luci-app-arthur-overview"]
+                       for name in module.OVERVIEW_FILES})
         self.assertTrue(all(module.package_ownership_checks(owners).values()))
 
         owners["etc/init.d/sing-box"] = ["sing-box"]
@@ -42,6 +44,9 @@ class CoreOriginTest(unittest.TestCase):
         owners["etc/openclash/core/clash_meta"] = ["luci-app-openclash"]
         self.assertFalse(module.package_ownership_checks(owners)
                          ["openclash_core_owned_separately"])
+        owners[module.OVERVIEW_FILES[0]] = ["luci-app-openclash"]
+        self.assertFalse(module.package_ownership_checks(owners)
+                         ["overview_owned_separately"])
 
     def test_legacy_firewall_and_setup_cannot_satisfy_backend_gate(self):
         with tempfile.TemporaryDirectory() as temp:

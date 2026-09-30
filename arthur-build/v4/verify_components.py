@@ -14,7 +14,7 @@ from core_elf import read_core_file
 
 REQUIRED_PACKAGES = {
     "base": ("luci", "luci-i18n-base-zh-cn", "luci-compat", "firewall4"),
-    "familiar_ui": ("luci-theme-argon",),
+    "familiar_ui": ("luci-theme-argon", "luci-app-arthur-overview"),
     "proxy": ("sing-box", "kmod-tun", "kmod-nft-tproxy", "luci-app-openclash",
               "arthur-openclash-core"),
     "multi_wan": ("mwan3", "luci-app-mwan3"),
@@ -33,7 +33,11 @@ REQUIRED_ROOT_FILES = (
     "usr/bin/sing-box-firewall4",
     "usr/bin/sing-box",
     "etc/openclash/core/clash_meta",
+    "www/luci-static/resources/view/arthur/overview.js",
+    "usr/share/luci/menu.d/luci-app-arthur-overview.json",
+    "usr/share/rpcd/acl.d/luci-app-arthur-overview.json",
 )
+OVERVIEW_FILES = REQUIRED_ROOT_FILES[-3:]
 CORE_TAGS = {"with_quic", "with_dhcp", "with_wireguard", "with_utls", "with_clash_api"}
 CUSTOM_OWNED_FILES = (
     "etc/init.d/sing-box", "etc/init.d/sing-box-setup",
@@ -94,7 +98,8 @@ def package_ownership_checks(owners: dict | None) -> dict:
         return {"core_binary_owned_by_core": "NOT_INSPECTED",
                 "custom_files_not_owned_by_core": "NOT_INSPECTED",
                 "custom_files_have_separate_owner": "NOT_INSPECTED",
-                "openclash_core_owned_separately": "NOT_INSPECTED"}
+                "openclash_core_owned_separately": "NOT_INSPECTED",
+                "overview_owned_separately": "NOT_INSPECTED"}
     if not isinstance(owners, dict) or any(
         not isinstance(path, str) or not isinstance(packages, list)
         or not packages or not all(isinstance(pkg, str) and pkg for pkg in packages)
@@ -112,6 +117,9 @@ def package_ownership_checks(owners: dict | None) -> dict:
             for path in CUSTOM_OWNED_FILES),
         "openclash_core_owned_separately": (
             owner_set("etc/openclash/core/clash_meta") == {"arthur-openclash-core"}),
+        "overview_owned_separately": all(
+            owner_set(path) == {"luci-app-arthur-overview"}
+            for path in OVERVIEW_FILES),
     }
 
 

@@ -14,7 +14,8 @@ pages only for dual WAN, Mesh, NSS status and independent Sing-box updates.
 `kmod-tun`, `kmod-nft-tproxy`, the proxy core, OpenClash, mwan3/LuCI and the NSS/Wi-Fi stack. A
 package name in `.config` is insufficient: the built manifest and root tree
 must contain it. The root tree must also contain a ported setup service,
-firewall4 backend and status page; simple static checks block the known legacy
+firewall4 backend and status page, including the separate read-only Arthur
+overview package and its view/menu/ACL; simple static checks block the known legacy
 iptables service. These checks are only an inventory, not functional proof.
 A Sing-box file in the root tree is also insufficient:
 `--core-build-report` must identify the V4 base and pinned 1.14.1 source,
