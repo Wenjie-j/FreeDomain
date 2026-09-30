@@ -115,6 +115,20 @@ packaging, implement and validate the firewall4 backend, confirm the dnsmasq
 include on a V4 image, test LuCI Lua compatibility, and verify service restart,
 node import/test, DNS and proxy behavior on a test image and device.
 
+`proxy_backend_transaction_model.py` models exclusive Sing-box/OpenClash
+switching offline. It now treats a failed start or stop as potentially having
+changed the service state. Rollback cleans and verifies a target whose start
+was attempted, checks for conflicting active backends before and after snapshot
+restoration, and avoids starting a previous backend that is already active.
+It checks exclusivity, management reachability and the previous domestic-direct
+path before returning `ROLLED_BACK`. Disabling the proxy also checks management
+reachability before committing. Eight additional failure tests cover partial
+start/stop, cleanup that leaves a target active, conflicting snapshot restoration,
+broken restored domestic traffic and disabled-state recovery. This remains a
+model with a simulated adapter: no live services, proxy rules or firmware change.
+The future real backend must add an exclusive transaction lock, durable recovery
+state and actual target health checks.
+
 `render_firewall4_draft.py` is the first offline firewall4 rule candidate. It
 renders a partial nftables file for inclusion *inside* `table inet fw4`, using
 the old IPv4 bypass ranges, a validated CN CIDR set, TCP redirect, UDP TPROXY,

@@ -17,7 +17,14 @@ def _result(target, state, steps, errors, previous=None):
 
 
 def switch(adapter, target):
-    """Switch one exclusive transparent-proxy backend, with rollback."""
+    """Switch one exclusive backend in a simulation, with checked rollback.
+
+    Adapter verification methods must raise on failed checks. snapshot_state()
+    and restore_snapshot() cover configuration and the persisted backend choice;
+    service state is inspected separately, including after partial command errors.
+    A real implementation still requires an exclusive transaction lock and
+    durable recovery state; this model has neither a command runner nor a lock.
+    """
     steps, errors = [], []
     if target not in BACKENDS:
         return _result(target, "BLOCKED_INVALID_TARGET", steps,
@@ -54,18 +61,17 @@ def switch(adapter, target):
     except Exception as exc:
         errors.append("PRE_SWITCH_FAILED:" + type(exc).__name__)
         return _result(target, "BLOCKED_PRE_SWITCH", steps, errors, previous)
-    stopped_previous = False
-    started_target = False
+    # Commands may change service state before raising an error.
+    target_start_attempted = False
     try:
         if previous != "disabled":
             adapter.stop_backend(previous)
-            stopped_previous = True
             steps.append("stop_previous")
             adapter.verify_backend_inactive(previous)
             steps.append("verify_previous_inactive")
         if target != "disabled":
+            target_start_attempted = True
             adapter.start_backend(target)
-            started_target = True
             steps.append("start_target")
             adapter.verify_backend(target)
             steps.append("verify_backend")
@@ -80,24 +86,41 @@ def switch(adapter, target):
             if set(adapter.active_backends()):
                 raise RuntimeError("backend remained active")
             steps.append("verify_all_inactive")
+            adapter.verify_management_reachable()
+            steps.append("verify_management_reachable")
         adapter.commit_choice(target)
         steps.append("commit_choice")
         return _result(target, "MODEL_SWITCHED", steps, errors, previous)
     except Exception as exc:
         errors.append("SWITCH_FAILED:" + type(exc).__name__)
         try:
-            if started_target:
+            if target_start_attempted:
                 adapter.stop_backend(target)
                 steps.append("stop_failed_target")
+                adapter.verify_backend_inactive(target)
+                steps.append("verify_failed_target_inactive")
+            allowed = {previous} if previous != "disabled" else set()
+            if not set(adapter.active_backends()).issubset(allowed):
+                raise RuntimeError("unexpected active backend before restore")
             adapter.restore_snapshot()
             steps.append("restore_snapshot")
-            if stopped_previous and previous != "disabled":
-                adapter.start_backend(previous)
-                steps.append("restart_previous")
+            restored_active = set(adapter.active_backends())
+            if not restored_active.issubset(allowed):
+                raise RuntimeError("unexpected active backend after snapshot restore")
+            if previous != "disabled":
+                if not restored_active:
+                    adapter.start_backend(previous)
+                    steps.append("restart_previous")
                 adapter.verify_backend(previous)
                 steps.append("verify_restored_backend")
-                adapter.verify_management_reachable()
-                steps.append("verify_restored_management")
+            if set(adapter.active_backends()) != allowed:
+                raise RuntimeError("restored backend exclusivity check failed")
+            steps.append("verify_restored_exclusive")
+            adapter.verify_management_reachable()
+            steps.append("verify_restored_management")
+            if previous != "disabled":
+                adapter.verify_domestic_direct_path(previous)
+                steps.append("verify_restored_domestic_direct_path")
             return _result(target, "ROLLED_BACK", steps, errors, previous)
         except Exception as rollback_exc:
             errors.append("ROLLBACK_FAILED:" + type(rollback_exc).__name__)
