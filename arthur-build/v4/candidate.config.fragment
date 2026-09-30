@@ -5,9 +5,9 @@ CONFIG_PACKAGE_luci=y
 CONFIG_PACKAGE_luci-compat=y
 CONFIG_PACKAGE_luci-theme-argon=y
 CONFIG_PACKAGE_luci-app-openclash=y
-# Pinned stable core: compile an independent APK, but do not include it in an
-# image before target runtime, migration and source distribution review.
-CONFIG_PACKAGE_arthur-openclash-core=m
+# Diagnostic integration probe: include the pinned non-activating ARM64 core.
+# This does NOT prove OpenClash target runtime, migration, or flash safety.
+CONFIG_PACKAGE_arthur-openclash-core=y
 CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
 # Compile the target backend package but keep it outside the image until the
@@ -15,8 +15,9 @@ CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_arthur-singbox-firewall4-test=m
 CONFIG_PACKAGE_mwan3=y
 CONFIG_PACKAGE_luci-app-mwan3=y
-# Build the new read-only view separately until LuCI runtime acceptance.
-CONFIG_PACKAGE_luci-app-arthur-overview=m
+# Include the reviewed read-only overview in the diagnostic root filesystem.
+# Runtime behavior and the private Sing-box UI are not yet accepted.
+CONFIG_PACKAGE_luci-app-arthur-overview=y
 # mwan3 2.12.2 still invokes iptables. Pin the nft compatibility provider so
 # firewall4 builds never resolve its virtual dependencies to legacy xtables.
 CONFIG_PACKAGE_iptables-nft=y
