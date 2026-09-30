@@ -44,6 +44,12 @@ class ConfigPreflightContractTests(unittest.TestCase):
         self.assertIn("v4-openclash-package-build.json", self.source)
         self.assertIn("--owners ../v4-package-file-owners.partial.json", self.source)
 
+    def test_mwan3_uses_nft_compatibility_provider_not_legacy_xtables(self):
+        self.assertIn("'PACKAGE_iptables-nft'", self.source)
+        self.assertIn("'PACKAGE_ip6tables-nft'", self.source)
+        self.assertIn("'PACKAGE_iptables-zz-legacy'", self.source)
+        self.assertIn("selected_forbidden_legacy_firewall_packages", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

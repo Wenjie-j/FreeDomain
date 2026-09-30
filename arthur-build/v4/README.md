@@ -337,6 +337,13 @@ sysupgrade preservation declaration and collisions with the Sing-box core and
 Arthur firewall4 package. Runtime DNS, firewall4 and NSS coexistence still
 requires target testing.
 
+The pinned mwan3 2.12.2 package still invokes iptables and declares the
+`iptables`/`ip6tables` virtual dependencies. The candidate therefore selects
+`iptables-nft` and `ip6tables-nft` explicitly and rejects both `*-zz-legacy`
+variants after `make defconfig`. This keeps the compatibility commands on the
+nftables backend; real dual-WAN failover, rule marks, DNS sets, NSS flow
+offload and transparent-proxy interaction remain target tests.
+
 `luci-app-arthur-overview/` is the first Chinese LuCI page draft. It refreshes
 read-only mwan3, netifd and wireless status and links only to status pages.
 See `UI-CONTRACT.md` for the eventual dual WAN, Mesh, NSS and core updater

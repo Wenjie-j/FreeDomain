@@ -114,6 +114,7 @@ jobs:
               'PACKAGE_luci-compat', 'PACKAGE_luci-app-openclash',
               'PACKAGE_kmod-nft-tproxy',
               'PACKAGE_sing-box', 'PACKAGE_mwan3', 'PACKAGE_luci-app-mwan3',
+              'PACKAGE_iptables-nft', 'PACKAGE_ip6tables-nft',
               'PACKAGE_wpad-mesh-openssl', 'SINGBOX_WITH_QUIC',
               'SINGBOX_WITH_DHCP', 'SINGBOX_WITH_WIREGUARD',
               'SINGBOX_WITH_UTLS', 'SINGBOX_WITH_CLASH_API',
@@ -123,19 +124,24 @@ jobs:
           module_flags = ('PACKAGE_arthur-singbox-firewall4-test',)
           missing_modules = [key for key in module_flags
                              if f'CONFIG_{key}=m' not in config]
+          forbidden = ('PACKAGE_iptables-zz-legacy', 'PACKAGE_ip6tables-zz-legacy')
+          selected_forbidden = [key for key in forbidden
+                                if f'CONFIG_{key}=y' in config or f'CONFIG_{key}=m' in config]
           recursive = 'recursive dependency detected!' in Path('../v4-defconfig.log').read_text()
           report = {
               'classification': 'CONFIG_PREFLIGHT_ONLY_NO_FIRMWARE_IMAGE',
               'requested_flags': len(flags) + len(module_flags),
               'missing_after_defconfig': missing,
               'missing_modules_after_defconfig': missing_modules,
+              'selected_forbidden_legacy_firewall_packages': selected_forbidden,
               'recursive_kconfig_dependency': recursive,
-              'status': 'PASS_CONFIG_ONLY' if not missing and not missing_modules and not recursive
+              'status': 'PASS_CONFIG_ONLY' if not missing and not missing_modules
+                        and not selected_forbidden and not recursive
                         else 'BLOCKED_CONFIG_DEPENDENCIES',
           }
           Path('../v4-config-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
           print(json.dumps(report, indent=2))
-          if missing or missing_modules or recursive:
+          if missing or missing_modules or selected_forbidden or recursive:
               raise SystemExit(2)
           PY
 
