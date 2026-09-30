@@ -176,16 +176,18 @@ class PrivateRuleBundleTests(unittest.TestCase):
             self.assertFalse((self.output / bundle.SNAPSHOT).exists())
             self.assertEqual(bundle.audit(self.output, self.binary)["dns_valid_until"], None)
 
-    def test_snapshot_expires_at_commit_and_does_not_publish(self):
+    def test_snapshot_expires_during_reproduction_and_does_not_publish(self):
         self.snapshot.write_text(json.dumps({
             "config_sha256": hashlib.sha256(self.config.read_bytes()).hexdigest(),
             "captured_at": self.now,
             "records": {"edge.example": {
                 "ipv4": ["1.1.1.1"], "expires_at": self.now + 5}}}))
-        ticks = iter([self.now] * 7 + [self.now + 6])
+        # The second decompile happens in the independent reproduction pass.
+        # Advance simulated time there, regardless of unrelated clock calls.
         with patch.object(bundle.prepare.__globals__["subprocess"], "run",
                           side_effect=self.fake_decompile), \
-                patch.object(bundle.time, "time", side_effect=lambda: next(ticks)):
+                patch.object(bundle.time, "time",
+                             side_effect=lambda: self.now + 6 if self.calls >= 2 else self.now):
             with self.assertRaisesRegex(ValueError, "expired"):
                 self.build()
         self.assert_not_published()
