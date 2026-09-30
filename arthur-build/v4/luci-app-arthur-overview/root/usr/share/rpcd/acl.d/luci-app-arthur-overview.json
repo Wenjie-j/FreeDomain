@@ -5,7 +5,8 @@
       "ubus": {
         "mwan3": [ "status" ],
         "network.interface": [ "dump" ],
-        "network.wireless": [ "status" ]
+        "network.wireless": [ "status" ],
+        "system": [ "info" ]
       }
     }
   }

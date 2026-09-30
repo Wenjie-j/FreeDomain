@@ -13,7 +13,7 @@ class ReadOnlyUIContractTest(unittest.TestCase):
         self.assertNotIn("write", grants)
         self.assertEqual(grants["read"]["ubus"], {
             "mwan3": ["status"], "network.interface": ["dump"],
-            "network.wireless": ["status"]})
+            "network.wireless": ["status"], "system": ["info"]})
         menu = json.loads((share / "luci/menu.d/luci-app-arthur-overview.json").read_text())
         self.assertEqual(menu["admin/status/arthur"]["action"]["path"], "arthur/overview")
         self.assertTrue((base / "htdocs/luci-static/resources/view/arthur/overview.js").is_file())
