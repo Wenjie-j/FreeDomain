@@ -505,11 +505,38 @@ did not make a firmware image or test LuCI, real traffic, boot or recovery on
 the Arthur. The later endpoint-bypass ordering change at `c0c054b` is on the
 candidate branch and was not in this long build.
 
-The next overview trial extracts the actual APK with the pinned build's host
-`apk` into a temporary directory. Its report then rejects missing, additional,
-symlinked or byte-different page/menu/ACL files against the staged payload.
-That stronger check has local failure-case tests, but the new cloud extraction
-step has not yet completed; the successful report above correctly says false.
+The overview trial extracts the actual APK with the pinned build's host
+`apk` into a temporary directory. Runs `36744511434`, `36746159632` and
+`36746557409` all compiled their selected packages, then stopped at this
+new audit: it incorrectly expected only the three staged LuCI files.
+OpenWrt's APK packaging also adds
+`lib/apk/packages/luci-app-arthur-overview.list`. The diagnostic image steps
+therefore never started in those runs.
+
+The corrected audit permits exactly that one bookkeeping file and requires
+its bytes to list exactly the three reviewed payload paths. It still rejects
+other additional files, symlinks, special files, executable data, changed
+page/menu/ACL bytes and excessive ACL permissions. The full build now logs
+the extracted file inventory before its audit.
+
+At `1a965f00`, run `36760777281` passed 139 V4 Python checks, 39 upgrade
+checks, 5 OTA checks and 7 page JavaScript checks; the pinned Chinese translation
+check also passed. Run `36760777279` downloaded the actual overview APK from
+failed run `36746159632`, built the same apk-tools 3.0.5 revision
+`b5a31c0d865342ad80be10d68f1bb3d3ad9b0866`, extracted it and passed the
+corrected audit. This package's SHA-256 is
+`cbd743bd10b7276fb0a9fe5b779cfcffa94f1bc42cd2bc181d7f284db2dee668`.
+The regression workflow compares it against a payload reconstructed from
+reviewed source, explicitly recording that origin; it does not claim a new
+package build, target LuCI execution or firmware approval. Its uploaded report
+records independent APK extraction as true. The earlier successful package
+report above remains unchanged and correctly records false.
+
+The image-inventory branch is advanced to include this verified fix and the
+later service-stop, signal-lock and multi-endpoint bypass changes. Its next
+full build must independently pass the staged-package and actual-APK audits
+again before the diagnostic image is assembled. Full image completion, private
+UI integration and hardware validation remain pending.
 
 The next package run also invokes `smoke_singbox_core.py` on the newly built
 ARM64 core under QEMU with that build's musl toolchain sysroot. Before execution
