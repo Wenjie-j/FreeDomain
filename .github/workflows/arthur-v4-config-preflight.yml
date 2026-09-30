@@ -94,6 +94,14 @@ jobs:
           cp -a "$GITHUB_WORKSPACE/arthur-build/v4/luci-app-arthur-overview" \
             package/arthur/
           test -f feeds/luci/luci.mk
+          # Catch an undiscoverable local package before a long toolchain build.
+          # DUMP reports the generated name and dependency expression; no
+          # package is compiled or installed in this step.
+          test -f package/arthur/luci-app-arthur-overview/Makefile
+          make -C package/arthur/luci-app-arthur-overview \
+            TOPDIR="$PWD" DUMP=1 | tee ../v4-overview-package-dump.txt
+          grep -q '^Package: luci-app-arthur-overview$' \
+            ../v4-overview-package-dump.txt
 
       - name: Verify Sing-box source and stage the reviewed recipe
         run: |
@@ -129,6 +137,11 @@ jobs:
             --seed nss-setup/config-nss.seed --output .config
           set -o pipefail
           make defconfig 2>&1 | tee ../v4-defconfig.log
+          if ! grep -Eq '^CONFIG_PACKAGE_luci-app-arthur-overview=[ym]$' .config; then
+            echo 'Overview missing from resolved configuration; Kconfig metadata:'
+            grep -n -m 8 'luci-app-arthur-overview' tmp/.packageinfo \
+              tmp/.config-package.in || true
+          fi
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -305,6 +318,7 @@ jobs:
           name: arthur-v4-config-preflight-no-image
           path: |
             v4-config-preflight.json
+            v4-overview-package-dump.txt
             v4-core-package-build.json
             v4-core-build-trace.json
             v4-singbox-qemu-smoke.json
@@ -324,3 +338,4 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+
