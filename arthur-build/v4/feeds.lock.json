@@ -12,6 +12,12 @@
     "go_mod_minimum": "1.25.5",
     "purpose": "Source candidate for a new OpenWrt 6.12-targeted build, not the existing Linux 4.4 binary"
   },
+  "openclash_source": {
+    "repository": "https://github.com/vernesong/OpenClash.git",
+    "revision": "c3a33c1d3407956fdf8f0e0b7c1a4c52e6ad9593",
+    "package_path": "luci-app-openclash",
+    "purpose": "Pinned candidate LuCI package for the V4 build; runtime interaction with Sing-box remains unverified"
+  },
   "feeds": [
     {"name": "packages", "repository": "https://github.com/openwrt/packages.git", "revision": "8f9ad5085e0e401e4327638a4e05258e1c5d4569"},
     {"name": "luci", "repository": "https://github.com/openwrt/luci.git", "revision": "0818828b3bf7ccc71f9a45a34873fb63826a2802"},

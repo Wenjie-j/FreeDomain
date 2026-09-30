@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import unittest
 
 
@@ -34,6 +35,12 @@ class ConfigPreflightContractTests(unittest.TestCase):
 
     def test_openclash_is_a_required_resolved_package(self):
         self.assertIn("'PACKAGE_luci-app-openclash'", self.source)
+        lock = json.loads((WORKFLOW.parents[2] / "arthur-build/v4/feeds.lock.json").read_text())
+        self.assertEqual(lock["openclash_source"]["revision"],
+                         "c3a33c1d3407956fdf8f0e0b7c1a4c52e6ad9593")
+        self.assertIn("git -C \"$RUNNER_TEMP/OpenClash\" checkout \"$openclash_rev\"", self.source)
+        self.assertIn("package/arthur/luci-app-openclash/compile", self.source)
+        self.assertIn("v4-openclash-package.sha256", self.source)
 
 
 if __name__ == "__main__":

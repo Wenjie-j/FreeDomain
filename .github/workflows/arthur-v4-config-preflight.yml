@@ -50,6 +50,7 @@ jobs:
           # cycles (e.g. squeezelite-custom) to this router build.
           ./scripts/feeds install \
             sing-box mwan3 luci luci-compat luci-app-mwan3 \
+            bash curl ruby ruby-yaml \
             kmod-qca-nss-drv kmod-qca-nss-ecm kmod-qca-nss-dp
           test -L package/feeds/packages/sing-box
           test -L package/feeds/packages/mwan3
@@ -59,6 +60,19 @@ jobs:
             https://github.com/jerrykuku/luci-theme-argon.git package/arthur/luci-theme-argon
           git -C package/arthur/luci-theme-argon checkout 0546f975a66796a89ff988524290c4a2e2d01855
           test -f package/arthur/luci-theme-argon/Makefile
+          openclash_repo="$(jq -er '.openclash_source.repository' \
+            "$GITHUB_WORKSPACE/arthur-build/v4/feeds.lock.json")"
+          openclash_rev="$(jq -er '.openclash_source.revision' \
+            "$GITHUB_WORKSPACE/arthur-build/v4/feeds.lock.json")"
+          [[ "$openclash_repo" == 'https://github.com/vernesong/OpenClash.git' ]]
+          [[ "$openclash_rev" =~ ^[0-9a-f]{40}$ ]]
+          git clone --filter=blob:none --no-checkout \
+            "$openclash_repo" "$RUNNER_TEMP/OpenClash"
+          git -C "$RUNNER_TEMP/OpenClash" checkout "$openclash_rev"
+          test "$(git -C "$RUNNER_TEMP/OpenClash" rev-parse HEAD)" = "$openclash_rev"
+          test -f "$RUNNER_TEMP/OpenClash/luci-app-openclash/Makefile"
+          cp -a "$RUNNER_TEMP/OpenClash/luci-app-openclash" package/arthur/
+          test -f package/arthur/luci-app-openclash/Makefile
           python3 "$GITHUB_WORKSPACE/arthur-build/v4/validate_firewall4_test_package.py" \
             --package "$GITHUB_WORKSPACE/arthur-build/v4/package/arthur-singbox-firewall4-test" \
             --candidate "$GITHUB_WORKSPACE/arthur-build/v4/sing-box-firewall4.candidate"
@@ -173,6 +187,14 @@ jobs:
             --core-owners ../v4-core-file-owners.json \
             --output-dir ..
 
+      - name: Compile pinned OpenClash LuCI package (no image)
+        working-directory: openwrt
+        run: |
+          make -j2 package/arthur/luci-app-openclash/compile V=s
+          openclash_apk="$(find bin/packages -name 'luci-app-openclash-*.apk' -print -quit)"
+          test -n "$openclash_apk"
+          sha256sum "$openclash_apk" > ../v4-openclash-package.sha256
+
       - name: Upload configuration report
         if: always()
         uses: actions/upload-artifact@v4
@@ -185,8 +207,10 @@ jobs:
             v4-core-file-owners.json
             v4-firewall4-package-build.json
             v4-package-file-owners.partial.json
+            v4-openclash-package.sha256
             openwrt/bin/packages/**/sing-box-1.14.1-r1.apk
             openwrt/bin/packages/**/arthur-singbox-firewall4-test-*.apk
+            openwrt/bin/packages/**/luci-app-openclash-*.apk
             openwrt/.config
             openwrt/feeds.conf
           include-hidden-files: true
