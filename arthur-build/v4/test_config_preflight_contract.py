@@ -44,6 +44,11 @@ class ConfigPreflightContractTests(unittest.TestCase):
         self.assertIn("v4-openclash-package-build.json", self.source)
         self.assertIn("--owners ../v4-package-file-owners.partial.json", self.source)
 
+    def test_openclash_prepares_luci_host_translation_tool(self):
+        self.assertIn("package/feeds/luci/luci-base/host/compile", self.source)
+        self.assertIn("test -x staging_dir/host/bin/po2lmo", self.source)
+        self.assertIn("bash curl ruby ruby-yaml unzip wget", self.source)
+
     def test_mwan3_uses_nft_compatibility_provider_not_legacy_xtables(self):
         self.assertIn("'PACKAGE_iptables-nft'", self.source)
         self.assertIn("'PACKAGE_ip6tables-nft'", self.source)

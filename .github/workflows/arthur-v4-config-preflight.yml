@@ -51,11 +51,14 @@ jobs:
           # cycles (e.g. squeezelite-custom) to this router build.
           ./scripts/feeds install \
             sing-box mwan3 luci luci-compat luci-app-mwan3 \
-            bash curl ruby ruby-yaml \
+            bash curl ruby ruby-yaml unzip wget \
             kmod-qca-nss-drv kmod-qca-nss-ecm kmod-qca-nss-dp
           test -L package/feeds/packages/sing-box
           test -L package/feeds/packages/mwan3
           test -L package/feeds/luci/luci-compat
+          test -L package/feeds/luci/luci-base
+          test -L package/feeds/packages/unzip
+          test -L package/feeds/packages/wget
           mkdir -p package/arthur
           git clone --filter=blob:none --no-checkout \
             https://github.com/jerrykuku/luci-theme-argon.git package/arthur/luci-theme-argon
@@ -197,6 +200,10 @@ jobs:
       - name: Compile pinned OpenClash LuCI package (no image)
         working-directory: openwrt
         run: |
+          # OpenClash calls po2lmo directly in Build/Prepare. Its Makefile does
+          # not declare luci-base/host, so build the pinned LuCI host tool first.
+          make -j2 package/feeds/luci/luci-base/host/compile V=s
+          test -x staging_dir/host/bin/po2lmo
           make -j2 package/arthur/luci-app-openclash/compile V=s
           openclash_apk="$(find bin/packages -name 'luci-app-openclash-*.apk' -print -quit)"
           openclash_root="$(find build_dir/target-* -type d \

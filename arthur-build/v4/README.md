@@ -337,6 +337,14 @@ sysupgrade preservation declaration and collisions with the Sing-box core and
 Arthur firewall4 package. Runtime DNS, firewall4 and NSS coexistence still
 requires target testing.
 
+Run `36656121598` resolved OpenClash in `make defconfig`, built the target
+kernel, Sing-box and firewall4 test package, then stopped in OpenClash's
+translation preparation: `po2lmo: command not found`. The pinned LuCI base
+Makefile builds that program via its host target. The next run now compiles
+`luci-base/host` explicitly before OpenClash and installs its missing `unzip`
+dependency; `wget` is also installed for Argon's declared dependency. This
+does not establish that the OpenClash package or final image has passed.
+
 The pinned mwan3 2.12.2 package still invokes iptables and declares the
 `iptables`/`ip6tables` virtual dependencies. The candidate therefore selects
 `iptables-nft` and `ip6tables-nft` explicitly and rejects both `*-zz-legacy`
