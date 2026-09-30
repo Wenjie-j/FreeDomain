@@ -369,6 +369,19 @@ An independent five-minute byte-audit workflow runs on the staging branch:
 it verifies the real locked archive and ARM64 file header without building a
 toolchain, executing the binary or publishing it. This can run alongside the
 existing long package build; its only artifact is audit metadata.
+Run `36690852290` passed the real-archive audit at commit `e86960ce`.
+Archive SHA-256:
+`8252d16726041872825cdd9089c798c318f8862466b40b34d8bf62225ef57e34`.
+It staged a 10,754,792-byte ARM64 ELF with SHA-256
+`453066ac9e5045d95d035a96b5c02fb593fdc0427c3c9153ff4d6a4403feab6a`.
+This is byte identity and architecture evidence, not an execution or APK test.
+
+`openclash-stable-core.candidate.json` separately records the official
+non-prerelease Mihomo `v1.19.31`, its tag's source commit, and GitHub's ARM64
+asset SHA-256 for subsequent stable packaging. It does not replace the
+active trial lock or select the stable binary for installation. The gzip
+asset has not yet been downloaded, licensed against corresponding source,
+packaged, or tested on Arthur.
 
 The pinned mwan3 2.12.2 package still invokes iptables and declares the
 `iptables`/`ip6tables` virtual dependencies. The candidate therefore selects
