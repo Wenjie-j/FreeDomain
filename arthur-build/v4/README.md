@@ -386,8 +386,12 @@ This is byte identity and architecture evidence, not an execution or APK test.
 non-prerelease Mihomo `v1.19.31`, its tag's source commit, and GitHub's ARM64
 asset SHA-256. The same version is now selected in `feeds.lock.json` for
 isolated packaging. This is still not an installation or flash approval.
-The stable gzip's real cloud verification is pending, as is package compilation
-and Arthur runtime validation.
+Run `36696409393` at commit `569db9dc` passed the official stable gzip's
+SHA-256 and ARM64 checks, then both QEMU version and minimal-configuration
+checks. Its 57,278,590-byte binary has SHA-256
+`1b315bc038d05f84ee86d232f3c3d2b020b5044e9b971bb8fe215b6e6a2148f3`.
+The test did not start a proxy service or test Arthur. APK compilation and
+Arthur runtime validation are still pending; no core binary/APK was uploaded.
 
 The pinned mwan3 2.12.2 package still invokes iptables and declares the
 `iptables`/`ip6tables` virtual dependencies. The candidate therefore selects

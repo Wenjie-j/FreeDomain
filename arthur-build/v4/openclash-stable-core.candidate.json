@@ -12,7 +12,11 @@
   "license_file_reviewed": true,
   "selected_for_isolated_packaging": true,
   "corresponding_source_and_license_reviewed": false,
-  "downloaded_and_verified": false,
+  "downloaded_and_verified": true,
+  "verified_binary_sha256": "1b315bc038d05f84ee86d232f3c3d2b020b5044e9b971bb8fe215b6e6a2148f3",
+  "verified_binary_size": 57278590,
+  "emulated_version_and_config_checked": true,
+  "qemu_smoke_run": 36696409393,
   "packaged_for_v4": false,
   "router_runtime_tested": false,
   "image_inclusion_approved": false
