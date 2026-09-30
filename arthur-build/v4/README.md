@@ -130,6 +130,22 @@ Their three Lua source files passed the host Lua 5.4 parser and both service
 scripts passed host shell syntax checks without executing the code. Those
 syntax checks do not establish target Lua compatibility or live service behavior.
 
+The manager's restart helper now checks transparent-proxy/DNS stop before
+stopping the core, checks the core stop result, and refuses to start a second
+core while the old process remains. The private package requires a recorded
+stop-order port flag as well as the file digests. An already-clean firewall4
+stop is idempotent only when both ownership files, both proxy chains and all
+reserved policy routing are absent; unowned residual state is preserved and
+reported as a failure. Synthetic service calls exercise the actual Lua control
+flow; cloud static checks use Lua 5.1, while the local fallback uses Lua 5.4.
+These tests make no service calls on the user's router.
+The firewall transaction signal handler now exits on HUP/INT/TERM rather than
+unlocking and continuing the interrupted transaction. A simulated TERM during
+`fw4 check` confirms that reload is not reached, the lock is released on exit,
+and the next start reconciles the existing owned include and routing. This
+does not guarantee rollback at every interruption point; unowned partial
+routing remains a reported condition requiring inspection.
+
 The active page's JavaScript already uses POST for mutations and GET for the
 list, so the method restriction preserves its existing interaction. Before
 packaging, implement and validate the firewall4 backend, confirm the dnsmasq

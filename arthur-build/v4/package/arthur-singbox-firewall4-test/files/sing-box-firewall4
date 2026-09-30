@@ -25,7 +25,8 @@ lock() {
     mkdir -p "${LOCK%/*}" || return 1
     mkdir "$LOCK" 2>/dev/null || return 1
     LOCKED=1
-    trap 'unlock' EXIT HUP INT TERM
+    trap 'unlock' EXIT
+    trap 'fail "transaction interrupted; inspect owned state before retry"; exit 1' HUP INT TERM
 }
 
 digest() {
@@ -208,6 +209,17 @@ start() {
 }
 
 stop() {
+    if [ ! -e "$INCLUDE" ] && [ ! -L "$INCLUDE" ] &&
+       [ ! -e "$OWNER" ] && [ ! -L "$OWNER" ]; then
+        rs=$(rule_state) || { fail 'cannot inspect policy rules'; return 1; }
+        ts=$(route_state) || { fail 'cannot inspect routing table 166'; return 1; }
+        if [ "$rs" = absent ] && [ "$ts" = absent ] && chains_absent; then
+            log 'firewall4 proxy rules already stopped'
+            return 0
+        fi
+        fail 'unowned proxy routing or chains remain; refusing cleanup'
+        return 1
+    fi
     owned || { fail 'refusing to remove unowned or changed include'; return 1; }
     rs=$(rule_state) || { fail 'cannot inspect policy rules'; return 1; }
     ts=$(route_state) || { fail 'cannot inspect routing table 166'; return 1; }

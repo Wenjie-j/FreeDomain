@@ -27,6 +27,7 @@ class PrivateUiPackageTest(unittest.TestCase):
             "candidate_setup_ported": True,
             "candidate_setup_dns_owner_hardened": True,
             "candidate_manager_rollback_hardened": True,
+            "candidate_manager_stop_checked": True,
             "staged_file_sha256": {
                 name: hashlib.sha256((staged / name).read_bytes()).hexdigest()
                 for name in module.REQUIRED

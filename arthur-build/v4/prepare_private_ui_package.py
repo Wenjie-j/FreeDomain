@@ -69,7 +69,7 @@ def prepare(staged: Path, output: Path) -> dict:
     manifest = json.loads(manifest_path.read_text())
     flags = ("candidate_controller_method_hardened", "candidate_status_ported",
              "candidate_setup_ported", "candidate_setup_dns_owner_hardened",
-             "candidate_manager_rollback_hardened")
+             "candidate_manager_rollback_hardened", "candidate_manager_stop_checked")
     if (manifest.get("classification") != "PRIVATE_OFFLINE_UI_SOURCE_NOT_INSTALL_APPROVAL"
             or any(manifest.get(flag) is not True for flag in flags)):
         raise ValueError("private staging tree has not passed required ports")

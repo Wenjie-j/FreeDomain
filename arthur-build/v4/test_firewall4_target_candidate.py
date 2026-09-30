@@ -68,7 +68,13 @@ esac
 ''')
         self._command("fw4", r'''
 case "$1" in
-  check) [ -f "$FAKE_INCLUDE" ] ;;
+  check)
+    if [ -f "$FAKE_STATE/interrupt-check" ]; then
+      rm -f "$FAKE_STATE/interrupt-check"
+      kill -TERM "$PPID"
+    fi
+    [ -f "$FAKE_INCLUDE" ]
+    ;;
   reload)
     if [ -f "$FAKE_STATE/fail-next-reload" ]; then
       rm -f "$FAKE_STATE/fail-next-reload"
@@ -109,6 +115,17 @@ esac
         self.assertFalse(self.include.exists())
         self.assertFalse((self.runtime / "rule").exists())
         self.assertFalse((self.runtime / "route").exists())
+        self.assertEqual(self.call("stop").returncode, 0)
+
+    def test_clean_stop_is_idempotent_but_unowned_state_is_not_removed(self):
+        self.assertEqual(self.call("stop").returncode, 0)
+        for marker in ("route", "rule", "chains", "foreign-route", "foreign-rule"):
+            path = self.runtime / marker
+            path.touch()
+            with self.subTest(marker=marker):
+                self.assertNotEqual(self.call("stop").returncode, 0)
+                self.assertTrue(path.exists())
+            path.unlink()
 
     def test_foreign_route_blocks_before_include_write(self):
         (self.runtime / "foreign-route").touch()
@@ -124,6 +141,20 @@ esac
         self.assertFalse(self.include.exists())
         self.assertFalse((self.runtime / "rule").exists())
         self.assertFalse((self.runtime / "route").exists())
+
+    def test_signal_exits_before_reload_and_next_start_reconciles_owned_state(self):
+        (self.runtime / "interrupt-check").touch()
+        result = self.call("start")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("transaction interrupted", result.stderr)
+        self.assertFalse((self.runtime / "chains").exists())
+        self.assertFalse((self.root / "lock/transaction").exists())
+        self.assertTrue(self.include.exists())
+        self.assertTrue((self.runtime / "route").exists())
+        self.assertTrue((self.runtime / "rule").exists())
+        self.assertEqual(self.call("start").returncode, 0)
+        self.assertEqual(self.call("status").returncode, 0)
+        self.assertEqual(self.call("stop").returncode, 0)
 
     def test_repeated_start_restores_volatile_routing_after_reboot(self):
         self.assertEqual(self.call("start").returncode, 0)

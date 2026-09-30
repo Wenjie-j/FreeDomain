@@ -266,6 +266,25 @@ def port_manager(source):
     return source.replace(old, new, 1)
 
 
+def port_restart_services(source):
+    old = '''    sys.call("/etc/init.d/sing-box-setup stop >/dev/null 2>&1")
+    sys.call("/etc/init.d/sing-box stop >/dev/null 2>&1")
+    sys.call("sleep 1")'''
+    new = '''    if sys.call("/etc/init.d/sing-box-setup stop >/dev/null 2>&1")~=0 then
+        return nil,"透明代理/DNS停止失败；未继续重启核心"
+    end
+    if sys.call("/etc/init.d/sing-box stop >/dev/null 2>&1")~=0 then
+        return nil,"sing-box停止失败；未继续启动核心"
+    end
+    sys.call("sleep 1")
+    if sys.call("pidof sing-box >/dev/null 2>&1")==0 then
+        return nil,"旧sing-box进程仍在运行；未继续启动核心"
+    end'''
+    if source.count(old) != 1:
+        raise ValueError("manager service stop contract changed")
+    return source.replace(old, new, 1)
+
+
 def stage(archive_path, destination, services_archive=None):
     report = audit(archive_path, services_archive)
     destination = Path(destination)
@@ -290,7 +309,8 @@ def stage(archive_path, destination, services_archive=None):
     status_name = STAGED[2]
     staged[status_name] = port_status(staged[status_name].decode()).encode()
     manager_name = STAGED[3]
-    staged[manager_name] = port_manager(staged[manager_name].decode()).encode()
+    staged[manager_name] = port_restart_services(
+        port_manager(staged[manager_name].decode())).encode()
     if services_archive is not None:
         setup_name = "etc/init.d/sing-box-setup"
         staged[setup_name] = port_setup(staged[setup_name].decode()).encode()
@@ -322,6 +342,7 @@ def stage(archive_path, destination, services_archive=None):
             "candidate_setup_ported": services_archive is not None,
             "candidate_setup_dns_owner_hardened": services_archive is not None,
             "candidate_manager_rollback_hardened": True,
+            "candidate_manager_stop_checked": True,
             "warning": "Private offline source candidate; never install as firmware overlay.",
         }, indent=2) + "\n"
     )
